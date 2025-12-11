@@ -17,25 +17,39 @@ export default function DashboardLayout({
     isAuthenticated,
     isLoading: authLoading,
     setLoading,
+    token,
   } = useAuthStore();
   const { setWorkspaces, setCurrentWorkspaceById, currentWorkspaceId } =
     useWorkspaceStore();
 
-  // Check authentication on mount
+  // Check authentication on mount - wait for hydration to complete
   useEffect(() => {
-    const checkAuth = async () => {
-      // Small delay to allow hydration
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    console.log('Dashboard Layout - Auth Check:', { 
+      authLoading, 
+      isAuthenticated, 
+      hasToken: !!token 
+    });
+    
+    // Wait for auth store to finish hydrating from localStorage
+    if (!authLoading) {
+      // Small delay to allow state to settle after navigation from login
+      const timer = setTimeout(() => {
+        const currentState = useAuthStore.getState();
+        console.log('Dashboard Layout - State Check:', {
+          isAuthenticated: currentState.isAuthenticated,
+          hasToken: !!currentState.token,
+          user: currentState.user?.email
+        });
+        
+        if (!currentState.isAuthenticated || !currentState.token) {
+          console.log('Dashboard Layout - Redirecting to signin');
+          router.replace("/auth/signin");
+        }
+      }, 100);
 
-      if (!isAuthenticated) {
-        router.replace("/auth/signin");
-      } else {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [isAuthenticated, router, setLoading]);
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading, router, isAuthenticated, token]);
 
   // Load workspaces when authenticated
   useEffect(() => {
@@ -65,13 +79,13 @@ export default function DashboardLayout({
     currentWorkspaceId,
   ]);
 
-  // Show loading state
+  // Show loading state while hydrating
   if (authLoading) {
     return <LoadingPage message="Loading..." />;
   }
 
-  // Don't render anything while redirecting
-  if (!isAuthenticated) {
+  // Don't render anything while checking auth or redirecting
+  if (!isAuthenticated || !token) {
     return <LoadingPage message="Redirecting..." />;
   }
 

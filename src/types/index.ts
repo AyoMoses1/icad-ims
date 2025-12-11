@@ -266,6 +266,49 @@ export interface LoginCredentials {
   rememberMe?: boolean;
 }
 
+export interface RegisterAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  phoneNumber: string;
+  dateOfBirth: string;
+  country: string;
+  address: RegisterAddress;
+}
+
+export interface RegisterResponseData {
+  id: string;
+  userName: string;
+  email: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  dateOfBirth: string;
+  country: string;
+  status: string;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  twoFactorEnabled: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  dateCreated: string;
+  dateModified: string;
+  fullName: string;
+  tenantId: string;
+}
+
 export interface SignUpData {
   email: string;
   password: string;
@@ -284,6 +327,46 @@ export interface ResetPasswordData {
   token: string;
   password: string;
   confirmPassword: string;
+}
+
+// OAuth Token Response (matches API response format)
+export interface TokenResponse {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+}
+
+// User Info Response from /connect/userinfo
+export interface UserInfo {
+  sub?: string; // Subject (user ID)
+  id?: string;
+  username?: string;
+  email?: string;
+  email_verified?: boolean;
+  given_name?: string; // First name
+  family_name?: string; // Last name
+  name?: string; // Full name
+  middleName?: string;
+  firstName?: string; // Alternative field name
+  lastName?: string; // Alternative field name
+  fullName?: string; // Alternative field name
+  phoneNumber?: string;
+  phone_verified?: boolean;
+  dateOfBirth?: string;
+  country?: string;
+  status?: string;
+  isActive?: boolean;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  tenantId?: string;
+  permissions?: string[];
+  roles?: string[];
+  [key: string]: unknown; // Allow additional properties
 }
 
 // ============================================================================
