@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthStore } from "@/store";
+import { apiPostForm, apiGetAuth } from "@/lib/api-client";
+import { TokenResponse, UserInfo, User, UserStatus } from "@/types";
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -38,8 +40,8 @@ export default function SignInPage() {
   } = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
-      email: "admin@mems.io",
-      password: "password123",
+      email: "",
+      password: "",
       rememberMe: false,
     },
   });
@@ -50,26 +52,141 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-        }),
-      });
+      // Get OAuth credentials from environment variables
+      const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+      const clientSecret = process.env.NEXT_PUBLIC_CLIENT_SECRET;
+      const grantType = process.env.NEXT_PUBLIC_GRANT_TYPE || "password";
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error?.message || "Sign in failed");
+      if (!clientId || !clientSecret) {
+        throw new Error("OAuth credentials are not configured");
       }
 
-      setSession(result.data);
+      // Call the token endpoint with form-urlencoded data
+      const tokenResponse = await apiPostForm<TokenResponse>("/connect/token", {
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: grantType,
+        username: data.email,
+        password: data.password,
+      });
+
+      console.log('Token Response:', tokenResponse);
+      console.log('Token Response access_token:', tokenResponse.access_token);
+      console.log('Token Response access_token type:', typeof tokenResponse.access_token);
+      console.log('Token Response access_token length:', tokenResponse.access_token?.length);
+
+      // Calculate expiration time (default to 1 hour if expires_in not provided)
+      const expiresIn = tokenResponse.expires_in || 3600;
+      const expiresAt = new Date(
+        Date.now() + expiresIn * 1000
+      ).toISOString();
+
+      // Temporarily set token in store to fetch user info
+      const tempSession = {
+        user: {
+          id: "",
+          username: data.email.split("@")[0],
+          email: data.email,
+          phoneNumber: "",
+          firstName: "",
+          lastName: "",
+          fullName: data.email,
+          status: "ACTIVE" as UserStatus,
+          emailVerified: false,
+          phoneVerified: false,
+          twoFactorEnabled: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        token: tokenResponse.access_token, // Fixed: use access_token not accessToken
+        refreshToken: tokenResponse.refresh_token || "", // Fixed: use refresh_token not refreshToken
+        expiresAt,
+      };
+      setSession(tempSession);
+
+      // Fetch user info from /connect/userinfo
+      let userInfo: UserInfo;
+      try {
+        userInfo = await apiGetAuth<UserInfo>("/connect/userinfo");
+      } catch (error) {
+        // If userinfo fails, continue with minimal user data
+        console.warn("Failed to fetch user info:", error);
+        toast.success("Welcome back!", {
+          description: "You have successfully signed in.",
+        });
+        router.push("/");
+        return;
+      }
+
+      // Convert UserInfo to User format
+      const user: User = {
+        id: userInfo.id || userInfo.sub || "",
+        username: userInfo.username || data.email.split("@")[0],
+        email: userInfo.email || data.email,
+        phoneNumber: userInfo.phoneNumber || "",
+        firstName: userInfo.firstName || "",
+        middleName: userInfo.middleName,
+        lastName: userInfo.lastName || "",
+        dateOfBirth: userInfo.dateOfBirth,
+        country: userInfo.country || "",
+        status: (userInfo.status as UserStatus) || UserStatus.ACTIVE,
+        emailVerified: userInfo.emailVerified || userInfo.email_verified || false,
+        phoneVerified: userInfo.phoneVerified || userInfo.phone_verified || false,
+        twoFactorEnabled: userInfo.twoFactorEnabled || false,
+        createdAt: userInfo.createdAt || new Date().toISOString(),
+        updatedAt: userInfo.updatedAt || new Date().toISOString(),
+      };
+
+      // Create full session with user data
+      const accessToken = tokenResponse.access_token;
+      const refreshToken = tokenResponse.refresh_token || "";
+      
+      console.log('Before creating session:', {
+        accessTokenExists: !!accessToken,
+        accessTokenType: typeof accessToken,
+        accessTokenLength: accessToken?.length,
+        refreshTokenExists: !!refreshToken
+      });
+      
+      const session = {
+        user: {
+          ...user,
+          fullName: userInfo.fullName || `${user.firstName} ${user.lastName}`.trim() || user.email,
+        },
+        token: accessToken,
+        refreshToken: refreshToken,
+        expiresAt,
+      };
+
+      console.log('Sign In - Session to Set:', {
+        hasToken: !!session.token,
+        tokenValue: session.token ? session.token.substring(0, 50) + '...' : 'MISSING',
+        tokenLength: session.token?.length,
+        tokenType: typeof session.token,
+        user: session.user.email,
+        refreshToken: session.refreshToken?.substring(0, 50) + '...',
+        expiresAt: session.expiresAt
+      });
+
+      setSession(session);
+      
+      // Wait a bit and check again
+      setTimeout(() => {
+        const storeState = useAuthStore.getState();
+        console.log('Sign In - Store State after 100ms:', {
+          hasToken: !!storeState.token,
+          tokenLength: storeState.token?.length,
+          isAuthenticated: storeState.isAuthenticated,
+          userEmail: storeState.user?.email
+        });
+      }, 100);
+      
       toast.success("Welcome back!", {
         description: "You have successfully signed in.",
       });
-      router.push("/");
+      
+      // Use replace instead of push to prevent back button issues
+      router.replace("/");
     } catch (error) {
       toast.error("Sign in failed", {
         description:

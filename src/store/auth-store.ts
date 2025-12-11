@@ -37,6 +37,13 @@ export const useAuthStore = create<AuthState>()(
 
       // Actions
       setSession: (session: AuthSession) => {
+        console.log('AuthStore - setSession called:', {
+          hasToken: !!session.token,
+          tokenLength: session.token?.length,
+          hasUser: !!session.user,
+          userEmail: session.user?.email
+        });
+        
         set({
           user: session.user,
           token: session.token,
@@ -44,6 +51,14 @@ export const useAuthStore = create<AuthState>()(
           expiresAt: session.expiresAt,
           isAuthenticated: true,
           isLoading: false,
+        });
+        
+        // Verify it was set
+        const stateAfterSet = get();
+        console.log('AuthStore - State after setSession:', {
+          hasToken: !!stateAfterSet.token,
+          isAuthenticated: stateAfterSet.isAuthenticated,
+          userEmail: stateAfterSet.user?.email
         });
       },
 
@@ -115,6 +130,21 @@ export const useAuthStore = create<AuthState>()(
         expiresAt: state.expiresAt,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // After rehydration, set loading to false
+        if (state) {
+          // Check if we have a valid token and session
+          const hasValidToken = state.token && state.expiresAt && 
+            new Date(state.expiresAt) > new Date();
+          
+          // If we have persisted auth data, ensure isAuthenticated is set correctly
+          if (hasValidToken && state.user) {
+            state.isAuthenticated = true;
+          }
+          
+          state.isLoading = false;
+        }
+      },
     }
   )
 );
