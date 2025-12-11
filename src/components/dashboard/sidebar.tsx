@@ -185,9 +185,22 @@ export function Sidebar() {
     );
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push("/auth/signin");
+  const handleLogout = async () => {
+    try {
+      console.log('Logout - Calling /connect/logout endpoint...');
+      // Call logout endpoint
+      const { apiPostAuth } = await import("@/lib/api-client");
+      await apiPostAuth("/connect/logout", {});
+      console.log('Logout - API call successful');
+    } catch (error) {
+      // Continue with logout even if API call fails
+      console.error("Logout - API call failed:", error);
+    } finally {
+      // Always clear local session and redirect
+      console.log('Logout - Clearing local session and redirecting...');
+      logout();
+      router.push("/auth/signin");
+    }
   };
 
   const isActive = (href: string) => {

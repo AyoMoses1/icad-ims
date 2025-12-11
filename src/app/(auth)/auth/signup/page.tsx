@@ -13,10 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { apiPost } from "@/lib/api-client";
+import { RegisterRequest, RegisterResponseData } from "@/types";
 
 const signUpSchema = z
   .object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
+    middleName: z.string().optional(),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
     password: z
@@ -26,6 +29,15 @@ const signUpSchema = z
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     confirmPassword: z.string(),
+    phoneNumber: z.string().min(1, "Phone number is required"),
+    dateOfBirth: z.string().min(1, "Date of birth is required"),
+    country: z.string().min(1, "Country is required"),
+    addressLine1: z.string().min(1, "Address line 1 is required"),
+    addressLine2: z.string().optional(),
+    city: z.string().min(1, "City is required"),
+    state: z.string().min(1, "State is required"),
+    postalCode: z.string().min(1, "Postal code is required"),
+    addressCountry: z.string().min(1, "Country is required"),
     agreeTerms: z.boolean().refine((val) => val === true, {
       message: "You must agree to the terms and conditions",
     }),
@@ -53,10 +65,20 @@ export default function SignUpPage() {
     resolver: zodResolver(signUpSchema),
     defaultValues: {
       firstName: "",
+      middleName: "",
       lastName: "",
       email: "",
       password: "",
       confirmPassword: "",
+      phoneNumber: "",
+      dateOfBirth: "",
+      country: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      addressCountry: "",
       agreeTerms: false,
     },
   });
@@ -67,30 +89,44 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          password: data.password,
-        }),
-      });
+      const registerData: RegisterRequest = {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        middleName: data.middleName || "",
+        lastName: data.lastName,
+        phoneNumber: data.phoneNumber,
+        dateOfBirth: new Date(data.dateOfBirth).toISOString(),
+        country: data.country,
+        address: {
+          line1: data.addressLine1,
+          line2: data.addressLine2 || "",
+          city: data.city,
+          state: data.state,
+          postalCode: data.postalCode,
+          country: data.addressCountry,
+        },
+      };
 
-      const result = await response.json();
+      const result = await apiPost<RegisterResponseData>(
+        "/api/auth/register",
+        registerData
+      );
 
-      if (!response.ok) {
-        throw new Error(result.error?.message || "Sign up failed");
+      if (!result.success || !result.data) {
+        throw new Error(
+          result.error?.message || result.message || "Registration failed"
+        );
       }
 
-      toast.success("Account created!", {
-        description: "Please check your email to verify your account.",
+      toast.success("Account created successfully!", {
+        description: result.message || "You can now sign in to your account.",
       });
 
+      // Redirect to login screen
       router.push("/auth/signin");
     } catch (error) {
-      toast.error("Sign up failed", {
+      toast.error("Registration failed", {
         description:
           error instanceof Error ? error.message : "Please try again",
       });
@@ -98,24 +134,6 @@ export default function SignUpPage() {
       setIsLoading(false);
     }
   };
-
-  // Check if signup is enabled
-  if (process.env.NEXT_PUBLIC_ENABLE_SIGNUP !== "true") {
-    return (
-      <div className="space-y-6 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Registration Unavailable
-        </h1>
-        <p className="text-muted-foreground">
-          Registration is currently invite-only. Please contact your
-          administrator to request an account.
-        </p>
-        <Button asChild>
-          <Link href="/auth/signin">Back to Sign In</Link>
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -131,7 +149,7 @@ export default function SignUpPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="firstName">First Name</Label>
+            <Label htmlFor="firstName">First Name *</Label>
             <Input
               id="firstName"
               placeholder="John"
@@ -147,24 +165,40 @@ export default function SignUpPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="lastName">Last Name</Label>
+            <Label htmlFor="middleName">Middle Name</Label>
             <Input
-              id="lastName"
-              placeholder="Doe"
+              id="middleName"
+              placeholder="O."
               disabled={isLoading}
-              error={!!errors.lastName}
-              {...register("lastName")}
+              error={!!errors.middleName}
+              {...register("middleName")}
             />
-            {errors.lastName && (
+            {errors.middleName && (
               <p className="text-sm text-destructive">
-                {errors.lastName.message}
+                {errors.middleName.message}
               </p>
             )}
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="lastName">Last Name *</Label>
+          <Input
+            id="lastName"
+            placeholder="Doe"
+            disabled={isLoading}
+            error={!!errors.lastName}
+            {...register("lastName")}
+          />
+          {errors.lastName && (
+            <p className="text-sm text-destructive">
+              {errors.lastName.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email *</Label>
           <Input
             id="email"
             type="email"
@@ -177,6 +211,159 @@ export default function SignUpPage() {
           {errors.email && (
             <p className="text-sm text-destructive">{errors.email.message}</p>
           )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">Phone Number *</Label>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              placeholder="+2348012345678"
+              disabled={isLoading}
+              error={!!errors.phoneNumber}
+              {...register("phoneNumber")}
+            />
+            {errors.phoneNumber && (
+              <p className="text-sm text-destructive">
+                {errors.phoneNumber.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+            <Input
+              id="dateOfBirth"
+              type="date"
+              disabled={isLoading}
+              error={!!errors.dateOfBirth}
+              {...register("dateOfBirth")}
+            />
+            {errors.dateOfBirth && (
+              <p className="text-sm text-destructive">
+                {errors.dateOfBirth.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="country">Country *</Label>
+          <Input
+            id="country"
+            placeholder="Nigeria"
+            disabled={isLoading}
+            error={!!errors.country}
+            {...register("country")}
+          />
+          {errors.country && (
+            <p className="text-sm text-destructive">{errors.country.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-4 border-t pt-4">
+          <h3 className="text-sm font-medium">Address Information</h3>
+          
+          <div className="space-y-2">
+            <Label htmlFor="addressLine1">Address Line 1 *</Label>
+            <Input
+              id="addressLine1"
+              placeholder="Street address"
+              disabled={isLoading}
+              error={!!errors.addressLine1}
+              {...register("addressLine1")}
+            />
+            {errors.addressLine1 && (
+              <p className="text-sm text-destructive">
+                {errors.addressLine1.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="addressLine2">Address Line 2</Label>
+            <Input
+              id="addressLine2"
+              placeholder="Apartment, suite, etc. (optional)"
+              disabled={isLoading}
+              error={!!errors.addressLine2}
+              {...register("addressLine2")}
+            />
+            {errors.addressLine2 && (
+              <p className="text-sm text-destructive">
+                {errors.addressLine2.message}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="city">City *</Label>
+              <Input
+                id="city"
+                placeholder="City"
+                disabled={isLoading}
+                error={!!errors.city}
+                {...register("city")}
+              />
+              {errors.city && (
+                <p className="text-sm text-destructive">
+                  {errors.city.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="state">State *</Label>
+              <Input
+                id="state"
+                placeholder="State"
+                disabled={isLoading}
+                error={!!errors.state}
+                {...register("state")}
+              />
+              {errors.state && (
+                <p className="text-sm text-destructive">
+                  {errors.state.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="postalCode">Postal Code *</Label>
+              <Input
+                id="postalCode"
+                placeholder="12345"
+                disabled={isLoading}
+                error={!!errors.postalCode}
+                {...register("postalCode")}
+              />
+              {errors.postalCode && (
+                <p className="text-sm text-destructive">
+                  {errors.postalCode.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="addressCountry">Country *</Label>
+              <Input
+                id="addressCountry"
+                placeholder="Nigeria"
+                disabled={isLoading}
+                error={!!errors.addressCountry}
+                {...register("addressCountry")}
+              />
+              {errors.addressCountry && (
+                <p className="text-sm text-destructive">
+                  {errors.addressCountry.message}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">
