@@ -272,7 +272,7 @@ export default function PermissionsPage() {
             <Key className="h-5 w-5 text-green-600" />
           </div>
           <div>
-            <p className="font-medium">{permission.permissionName.split(":")[0]}</p>
+            <p className="font-medium">{permission?.permissionName?.includes(":") ? permission?.permissionName.split(":")[1] : permission?.permissionName}</p>
             <p className="text-sm text-muted-foreground">
               {permission.description}
             </p>
