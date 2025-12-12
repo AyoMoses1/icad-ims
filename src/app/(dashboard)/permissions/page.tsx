@@ -28,6 +28,7 @@ import {
   DataTable,
   DataTableColumn,
   ConfirmDialog,
+  LoadingSpinner,
 } from "@/components/shared";
 import { Permission } from "@/types";
 import { formatDate } from "@/lib/utils";
@@ -42,6 +43,7 @@ export default function PermissionsPage() {
   const [selectedPermission, setSelectedPermission] =
     useState<Permission | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingPermission, setIsLoadingPermission] = useState(false);
 
   // Search and pagination state
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,7 +54,6 @@ export default function PermissionsPage() {
 
   const [formData, setFormData] = useState({
     permissionName: "",
-    permissionCode: "",
     description: "",
   });
 
@@ -140,8 +141,8 @@ export default function PermissionsPage() {
   }, [searchTimeout]);
 
   const handleCreate = async () => {
-    if (!formData.permissionName.trim() || !formData.permissionCode.trim()) {
-      toast.error("Name and code are required");
+    if (!formData.permissionName.trim()) {
+      toast.error("Permission name is required");
       return;
     }
 
@@ -165,21 +166,47 @@ export default function PermissionsPage() {
     }
   };
 
-  const openEditDialog = (permission: Permission) => {
+  const openEditDialog = async (permission: Permission) => {
     setSelectedPermission(permission);
-    setFormData({
-      permissionName: permission.permissionName,
-      permissionCode: permission.permissionCode,
-      description: permission.description || "",
-    });
     setIsEditOpen(true);
+    setIsLoadingPermission(true);
+
+    try {
+      const result = await apiGet<Permission>(`/api/permissions/${permission.permissionId}`);
+      
+      if (result.success && result.data) {
+        const permissionData = result.data;
+        setFormData({
+          permissionName: permissionData.permissionName,
+          description: permissionData.description || "",
+        });
+        setSelectedPermission(permissionData);
+      } else {
+        toast.error("Failed to load permission details");
+        // Fallback to using the permission from the table
+        setFormData({
+          permissionName: permission.permissionName,
+          description: permission.description || "",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching permission:", error);
+      toast.error("Failed to load permission details");
+      // Fallback to using the permission from the table
+      setFormData({
+        permissionName: permission.permissionName,
+        description: permission.description || "",
+      });
+    } finally {
+      setIsLoadingPermission(false);
+    }
   };
 
   const handleEdit = async () => {
     if (!selectedPermission) return;
 
-    if (!formData.permissionName.trim() || !formData.permissionCode.trim()) {
-      toast.error("Name and code are required");
+    if (!formData.permissionName.trim()) {
+      toast.error("Permission name is required");
       return;
     }
 
@@ -231,7 +258,6 @@ export default function PermissionsPage() {
   const resetForm = () => {
     setFormData({
       permissionName: "",
-      permissionCode: "",
       description: "",
     });
   };
@@ -254,15 +280,6 @@ export default function PermissionsPage() {
         </div>
       ),
       sortable: true,
-    },
-    {
-      id: "code",
-      header: "Code",
-      cell: (permission) => (
-        <code className="px-2 py-1 rounded bg-muted text-sm">
-          {permission.permissionCode.includes(":") ? permission.permissionCode.split(":")[1] : permission.permissionCode}
-        </code>
-      ),
     },
     {
       id: "status",
@@ -361,23 +378,6 @@ export default function PermissionsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="permissionCode">Permission Code *</Label>
-              <Input
-                id="permissionCode"
-                placeholder="e.g., VIEW_REPORTS"
-                value={formData.permissionCode}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    permissionCode: e.target.value.toUpperCase(),
-                  })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique code used in the system. Will be converted to uppercase.
-              </p>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
@@ -415,6 +415,12 @@ export default function PermissionsPage() {
               Update the permission details.
             </DialogDescription>
           </DialogHeader>
+          {isLoadingPermission ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <LoadingSpinner size="lg" />
+              <p className="mt-4 text-sm text-muted-foreground">Loading permission details...</p>
+            </div>
+          ) : (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-permissionName">Permission Name *</Label>
@@ -428,23 +434,6 @@ export default function PermissionsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-permissionCode">Permission Code *</Label>
-              <Input
-                id="edit-permissionCode"
-                placeholder="e.g., VIEW_REPORTS"
-                value={formData.permissionCode}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    permissionCode: e.target.value.toUpperCase(),
-                  })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique code used in the system. Will be converted to uppercase.
-              </p>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="edit-description">Description</Label>
               <Textarea
                 id="edit-description"
@@ -456,6 +445,7 @@ export default function PermissionsPage() {
               />
             </div>
           </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
@@ -464,10 +454,15 @@ export default function PermissionsPage() {
                 setSelectedPermission(null);
                 resetForm();
               }}
+              disabled={isLoadingPermission}
             >
               Cancel
             </Button>
-            <Button onClick={handleEdit} loading={isSubmitting}>
+            <Button 
+              onClick={handleEdit} 
+              loading={isSubmitting}
+              disabled={isLoadingPermission}
+            >
               Save Changes
             </Button>
           </DialogFooter>

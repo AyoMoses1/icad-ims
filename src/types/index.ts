@@ -234,7 +234,6 @@ export interface WorkspaceResource {
 export interface Permission {
   permissionId: string;
   permissionName: string;
-  permissionCode: string;
   description: string;
   isActive: boolean;
   createdBy: string;
