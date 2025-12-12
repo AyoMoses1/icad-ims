@@ -202,6 +202,3 @@ export const safeLocalStorage = {
     }
   },
 };
-
-
-

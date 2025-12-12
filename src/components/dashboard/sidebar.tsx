@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -43,7 +43,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore, useWorkspaceStore, useUIStore } from "@/store";
-import { Workspace } from "@/types";
+import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
+import { apiGet } from "@/lib/api-client";
 
 interface NavItem {
   title: string;
@@ -176,6 +177,33 @@ export function Sidebar() {
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceResource[]>([]);
+
+  // Load workspace menu when workspace changes
+  useEffect(() => {
+    if (currentWorkspace?.workspaceId) {
+      loadWorkspaceMenu(currentWorkspace.workspaceId);
+    } else {
+      setWorkspaceMenu([]);
+    }
+  }, [currentWorkspace?.workspaceId]);
+
+  const loadWorkspaceMenu = async (workspaceId: string) => {
+    try {
+      const result = await apiGet<PaginatedResponse<WorkspaceResource>>(
+        `/api/workspaces/${workspaceId}/menu`
+      );
+      if (result.success && result.data) {
+        // Extract the items array from the paginated response
+        setWorkspaceMenu(result.data.items || []);
+      } else {
+        setWorkspaceMenu([]);
+      }
+    } catch (error) {
+      console.error("Failed to load workspace menu", error);
+      setWorkspaceMenu([]);
+    }
+  };
 
   const toggleExpand = (title: string) => {
     setExpandedItems((prev) =>
@@ -187,17 +215,17 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     try {
-      console.log('Logout - Calling /connect/logout endpoint...');
+      console.log("Logout - Calling /connect/logout endpoint...");
       // Call logout endpoint
       const { apiPostAuth } = await import("@/lib/api-client");
       await apiPostAuth("/connect/logout", {});
-      console.log('Logout - API call successful');
+      console.log("Logout - API call successful");
     } catch (error) {
       // Continue with logout even if API call fails
       console.error("Logout - API call failed:", error);
     } finally {
       // Always clear local session and redirect
-      console.log('Logout - Clearing local session and redirecting...');
+      console.log("Logout - Clearing local session and redirecting...");
       logout();
       router.push("/auth/signin");
     }
@@ -300,6 +328,79 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="space-y-1">
+          {/* Workspace Menu Items (if available) */}
+          {workspaceMenu.length > 0 && currentWorkspace ? (
+            <>
+              {workspaceMenu
+                .filter((item: WorkspaceResource) => !item.parentId) // Top-level items only
+                .map((menuItem: WorkspaceResource) => {
+                  const children = workspaceMenu.filter(
+                    (item: WorkspaceResource) =>
+                      item.parentId === menuItem.resourceId
+                  );
+                  return (
+                    <div key={menuItem.resourceId}>
+                      {children.length > 0 ? (
+                        <>
+                          <button
+                            onClick={() => toggleExpand(menuItem.resourceId)}
+                            className={cn(
+                              "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
+                              isChildActive(
+                                children.map((c: WorkspaceResource) => ({
+                                  title: c.resourceName,
+                                  href: c.url || "#",
+                                }))
+                              ) || expandedItems.includes(menuItem.resourceId)
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                : "text-sidebar-foreground hover:bg-sidebar-muted"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <FolderTree className="h-5 w-5 flex-shrink-0" />
+                              <span className="text-left">
+                                {menuItem.resourceName}
+                              </span>
+                            </div>
+                            {expandedItems.includes(menuItem.resourceId) ? (
+                              <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                            )}
+                          </button>
+                          {expandedItems.includes(menuItem.resourceId) && (
+                            <div className="mt-1 space-y-1 ml-2">
+                              {children.map((child: WorkspaceResource) => (
+                                <NavLink
+                                  key={child.resourceId}
+                                  item={{
+                                    title: child.resourceName,
+                                    href: child.url || "#",
+                                  }}
+                                  isChild
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <NavLink
+                          item={{
+                            title: menuItem.resourceName,
+                            href: menuItem.url || "#",
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              {/* Separator if both menu and nav items exist */}
+              {navItems.length > 0 && (
+                <div className="my-2 border-t border-sidebar-border" />
+              )}
+            </>
+          ) : null}
+          {/* Default Navigation Items */}
           {navItems.map((item) => (
             <div key={item.title}>
               {item.children ? (

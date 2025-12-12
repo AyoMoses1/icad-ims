@@ -2,7 +2,32 @@
  * API Client for making requests to the backend API
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+// Get API base URL - access at runtime to ensure env vars are loaded
+function getApiBaseUrl(): string {
+  // In Next.js, NEXT_PUBLIC_ variables are embedded at build time
+  // They should be available in both server and client contexts
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "";
+
+  // Log in development to help debug
+  if (typeof window !== "undefined") {
+    if (!baseUrl) {
+      console.error(
+        "❌ CRITICAL: NEXT_PUBLIC_API_BASE_URL is not set!",
+        "\n  Current value:",
+        process.env.NEXT_PUBLIC_API_BASE_URL,
+        "\n  This will cause API calls to fail or go to localhost.",
+        "\n  Please:",
+        "\n  1. Check your .env or .env.local file",
+        "\n  2. Restart your Next.js dev server (npm run dev)",
+        "\n  3. Clear .next cache if needed (rm -rf .next)"
+      );
+    } else if (process.env.NODE_ENV === "development") {
+      console.log("✅ API Base URL loaded:", baseUrl);
+    }
+  }
+
+  return baseUrl;
+}
 
 export interface ApiError {
   message: string;
@@ -24,7 +49,7 @@ export interface ApiResponse<T> {
  */
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  
+
   try {
     // Import dynamically to avoid circular dependencies
     const { useAuthStore } = require("@/store");
@@ -41,11 +66,31 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  const API_BASE_URL = getApiBaseUrl();
+
+  console.log({API_BASE_URL})
+
+  if (!API_BASE_URL) {
+    const errorMsg = `NEXT_PUBLIC_API_BASE_URL is not configured. Current value: "${process.env.NEXT_PUBLIC_API_BASE_URL}". Please check your .env file and restart the dev server.`;
+    console.error("❌ API Client Error:", errorMsg);
+    throw new Error(errorMsg);
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
+  // Debug logging in development
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+    console.log("🌐 API Request:", {
+      method: options.method || "GET",
+      url,
+      endpoint,
+      baseUrl: API_BASE_URL,
+    });
+  }
+
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   // Add authorization token if available
@@ -119,9 +164,7 @@ export async function apiPut<T>(
 /**
  * DELETE request helper
  */
-export async function apiDelete<T>(
-  endpoint: string
-): Promise<ApiResponse<T>> {
+export async function apiDelete<T>(endpoint: string): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, { method: "DELETE" });
 }
 
@@ -132,6 +175,14 @@ export async function apiPostForm<T>(
   endpoint: string,
   formData: Record<string, string>
 ): Promise<T> {
+  const API_BASE_URL = getApiBaseUrl();
+
+  if (!API_BASE_URL) {
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is not configured. Please check your .env file and restart the dev server."
+    );
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Convert object to URLSearchParams for form-urlencoded
@@ -153,7 +204,9 @@ export async function apiPostForm<T>(
       const errorData = await response.json().catch(() => ({
         error: "Request failed",
       }));
-      throw new Error(errorData.error_description || errorData.error || "Request failed");
+      throw new Error(
+        errorData.error_description || errorData.error || "Request failed"
+      );
     }
 
     const data: T = await response.json();
@@ -177,6 +230,14 @@ export async function apiPostForm<T>(
  * GET request helper with authentication (returns raw data, not wrapped in ApiResponse)
  */
 export async function apiGetAuth<T>(endpoint: string): Promise<T> {
+  const API_BASE_URL = getApiBaseUrl();
+
+  if (!API_BASE_URL) {
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is not configured. Please check your .env file and restart the dev server."
+    );
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getAuthToken();
 
@@ -197,7 +258,9 @@ export async function apiGetAuth<T>(endpoint: string): Promise<T> {
       const errorData = await response.json().catch(() => ({
         error: "Request failed",
       }));
-      throw new Error(errorData.error_description || errorData.error || "Request failed");
+      throw new Error(
+        errorData.error_description || errorData.error || "Request failed"
+      );
     }
 
     const data: T = await response.json();
@@ -220,6 +283,14 @@ export async function apiPostAuth<T>(
   endpoint: string,
   body?: unknown
 ): Promise<T> {
+  const API_BASE_URL = getApiBaseUrl();
+
+  if (!API_BASE_URL) {
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is not configured. Please check your .env file and restart the dev server."
+    );
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getAuthToken();
 
@@ -241,7 +312,9 @@ export async function apiPostAuth<T>(
       const errorData = await response.json().catch(() => ({
         error: "Request failed",
       }));
-      throw new Error(errorData.error_description || errorData.error || "Request failed");
+      throw new Error(
+        errorData.error_description || errorData.error || "Request failed"
+      );
     }
 
     const data: T = await response.json();
@@ -256,4 +329,3 @@ export async function apiPostAuth<T>(
     throw new Error("An unexpected error occurred");
   }
 }
-

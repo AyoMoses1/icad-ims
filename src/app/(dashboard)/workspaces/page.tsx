@@ -46,12 +46,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, ConfirmDialog } from "@/components/shared";
 import { useWorkspaceStore } from "@/store";
-import { Workspace } from "@/types";
+import { Workspace, PaginatedResponse } from "@/types";
+import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 
 export default function WorkspacesPage() {
   const router = useRouter();
   const { workspaces, setWorkspaces, setCurrentWorkspace } =
     useWorkspaceStore();
+
+  console.log({ workspaces });
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -66,6 +69,7 @@ export default function WorkspacesPage() {
     name: "",
     description: "",
     type: "Compliance",
+    code: "",
   });
 
   useEffect(() => {
@@ -75,13 +79,23 @@ export default function WorkspacesPage() {
   const loadWorkspaces = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/workspaces?includeInactive=true");
-      const result = await response.json();
-      if (result.success) {
-        setWorkspaces(result.data);
+      const result = await apiGet<PaginatedResponse<Workspace>>(
+        "/api/workspaces?includeInactive=true"
+      );
+      if (result.success && result.data) {
+        // Extract the items array from the paginated response and filter out deleted workspaces
+        const workspacesArray = (result.data.items || []).filter(
+          (ws) => !ws.isDeleted
+        );
+        setWorkspaces(workspacesArray);
+      } else {
+        setWorkspaces([]);
       }
     } catch (error) {
-      toast.error("Failed to load workspaces");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load workspaces"
+      );
+      setWorkspaces([]);
     } finally {
       setIsLoading(false);
     }
@@ -95,17 +109,11 @@ export default function WorkspacesPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          color: "#3EADC0",
-          isActive: true,
-        }),
+      const result = await apiPost<Workspace>("/api/workspaces", {
+        ...formData,
+        color: "#3EADC0",
+        isActive: true,
       });
-
-      const result = await response.json();
 
       if (result.success) {
         toast.success("Workspace created successfully");
@@ -116,7 +124,9 @@ export default function WorkspacesPage() {
         toast.error(result.error?.message || "Failed to create workspace");
       }
     } catch (error) {
-      toast.error("Failed to create workspace");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create workspace"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -127,12 +137,9 @@ export default function WorkspacesPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(
-        `/api/workspaces/${selectedWorkspace.workspaceId}`,
-        { method: "DELETE" }
+      const result = await apiDelete(
+        `/api/workspaces/${selectedWorkspace.workspaceId}`
       );
-
-      const result = await response.json();
 
       if (result.success) {
         toast.success("Workspace deleted successfully");
@@ -143,7 +150,9 @@ export default function WorkspacesPage() {
         toast.error(result.error?.message || "Failed to delete workspace");
       }
     } catch (error) {
-      toast.error("Failed to delete workspace");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete workspace"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -154,6 +163,7 @@ export default function WorkspacesPage() {
       name: "",
       description: "",
       type: "Compliance",
+      code: "",
     });
   };
 
@@ -384,6 +394,17 @@ export default function WorkspacesPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="code">Code</Label>
+              <Input
+                id="code"
+                placeholder="Enter workspace code"
+                value={formData.code}
+                onChange={(e) =>
+                  setFormData({ ...formData, code: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="type">Workspace Type *</Label>
               <Select
                 value={formData.type}
@@ -438,5 +459,3 @@ export default function WorkspacesPage() {
     </div>
   );
 }
-
-

@@ -103,6 +103,7 @@ export interface Workspace {
   icon?: string;
   color?: string;
   isActive: boolean;
+  isDeleted?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -385,7 +386,7 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
-  data: T[];
+  items: T[];
   pageNumber: number;
   pageSize: number;
   totalCount: number;
@@ -441,6 +442,3 @@ export interface FormState {
 }
 
 export type FormMode = "create" | "edit" | "view";
-
-
-
