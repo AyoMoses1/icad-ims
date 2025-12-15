@@ -211,11 +211,11 @@ export function Sidebar() {
     }
   };
 
+  // Only allow one workspace expanded/highlighted at a time to avoid multiple
+  // items looking active when the user switches between them.
   const toggleWorkspace = (workspaceId: string) => {
     setExpandedWorkspaces((prev) =>
-      prev.includes(workspaceId)
-        ? prev.filter((id) => id !== workspaceId)
-        : [...prev, workspaceId]
+      prev.includes(workspaceId) ? [] : [workspaceId]
     );
   };
 
