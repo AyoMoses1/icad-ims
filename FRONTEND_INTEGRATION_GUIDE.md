@@ -947,4 +947,3 @@ For questions or issues, contact the backend team or refer to:
 
 **Last Updated:** December 2024
 **Version:** 1.0
-

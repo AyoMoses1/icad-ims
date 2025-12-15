@@ -44,8 +44,9 @@ import {
   DataTableColumn,
   ConfirmDialog,
 } from "@/components/shared";
-import { User, UserWithFullName, UserStatus } from "@/types";
+import { User, UserWithFullName, UserStatus, UsersListResponse } from "@/types";
 import { formatDate, getInitials } from "@/lib/utils";
+import { apiGet, apiPost, apiPut, apiDelete, apiPostAuth } from "@/lib/api-client";
 
 const statusColors: Record<
   UserStatus,
@@ -84,12 +85,29 @@ export default function UsersPage() {
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/users");
-      const result = await response.json();
-      if (result.success) {
-        setUsers(result.data);
+      const result = await apiGet<UserWithFullName[]>("/api/users");
+      if (result.success && result.data) {
+        // Handle both array and paginated response formats
+        let usersData: UserWithFullName[];
+        
+        if (Array.isArray(result.data)) {
+          // Next.js API route returns array directly
+          usersData = result.data;
+        } else if ((result.data as any)?.data?.items) {
+          // Backend API returns nested structure: { data: { items: [...] } }
+          usersData = (result.data as any).data.items;
+        } else if ((result.data as any)?.items) {
+          // Alternative nested structure: { items: [...] }
+          usersData = (result.data as any).items;
+        } else {
+          // Fallback: try to use data as-is
+          usersData = result.data as any;
+        }
+        
+        setUsers(usersData);
       }
     } catch (error) {
+      console.error("Error loading users:", error);
       toast.error("Failed to load users");
     } finally {
       setIsLoading(false);
@@ -104,7 +122,7 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/users", {
+      const response = await fetch(`/api/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -132,13 +150,10 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/users/${selectedUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      const result = await response.json();
+      const result = await apiPut<UserWithFullName>(
+        `/api/users/${selectedUser.id}`,
+        formData
+      );
 
       if (result.success) {
         toast.success("User updated successfully");
@@ -150,7 +165,7 @@ export default function UsersPage() {
         toast.error(result.error?.message || "Failed to update user");
       }
     } catch (error) {
-      toast.error("Failed to update user");
+      toast.error(error instanceof Error ? error.message : "Failed to update user");
     } finally {
       setIsSubmitting(false);
     }
@@ -161,11 +176,7 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/users/${selectedUser.id}`, {
-        method: "DELETE",
-      });
-
-      const result = await response.json();
+      const result = await apiDelete(`/api/users/${selectedUser.id}`);
 
       if (result.success) {
         toast.success("User deleted successfully");
@@ -176,7 +187,7 @@ export default function UsersPage() {
         toast.error(result.error?.message || "Failed to delete user");
       }
     } catch (error) {
-      toast.error("Failed to delete user");
+      toast.error(error instanceof Error ? error.message : "Failed to delete user");
     } finally {
       setIsSubmitting(false);
     }
