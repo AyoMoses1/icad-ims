@@ -68,7 +68,7 @@ export async function apiClient<T>(
 ): Promise<ApiResponse<T>> {
   const API_BASE_URL = getApiBaseUrl();
 
-  console.log({API_BASE_URL})
+  console.log({ API_BASE_URL });
 
   if (!API_BASE_URL) {
     const errorMsg = `NEXT_PUBLIC_API_BASE_URL is not configured. Current value: "${process.env.NEXT_PUBLIC_API_BASE_URL}". Please check your .env file and restart the dev server.`;

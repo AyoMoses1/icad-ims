@@ -183,28 +183,20 @@ export default function WorkspaceDetailPage() {
   const loadWorkspaceData = async () => {
     setIsLoading(true);
     try {
-      const [
-        wsResult,
-        resourcesResult,
-        rolesResult,
-        membersResult,
-        menuResult,
-      ] = await Promise.all([
-        apiGet<Workspace>(`/api/workspaces/${workspaceId}`),
-        // Backend returns array directly, but handle PaginatedResponse for compatibility
-        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-          `/api/workspaces/${workspaceId}/resources`
-        ),
-        apiGet<WorkspaceRole[] | PaginatedResponse<WorkspaceRole>>(
-          `/api/workspaces/${workspaceId}/roles`
-        ),
-        apiGet<WorkspaceMember[] | PaginatedResponse<WorkspaceMember>>(
-          `/api/workspaces/${workspaceId}/members`
-        ),
-        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-          `/api/workspaces/${workspaceId}/menu`
-        ),
-      ]);
+      const [wsResult, resourcesResult, rolesResult, membersResult] =
+        await Promise.all([
+          apiGet<Workspace>(`/api/workspaces/${workspaceId}`),
+          // Backend returns array directly, but handle PaginatedResponse for compatibility
+          apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+            `/api/workspaces/${workspaceId}/resources`
+          ),
+          apiGet<WorkspaceRole[] | PaginatedResponse<WorkspaceRole>>(
+            `/api/workspaces/${workspaceId}/roles`
+          ),
+          apiGet<WorkspaceMember[] | PaginatedResponse<WorkspaceMember>>(
+            `/api/workspaces/${workspaceId}/members`
+          ),
+        ]);
 
       if (wsResult.success && wsResult.data) {
         setWorkspace(wsResult.data);
@@ -407,15 +399,6 @@ export default function WorkspaceDetailPage() {
         setMembers(transformedMembers);
       } else {
         setMembers([]);
-      }
-      if (menuResult.success && menuResult.data) {
-        // Handle both direct array and PaginatedResponse formats
-        const menuData = Array.isArray(menuResult.data)
-          ? menuResult.data
-          : menuResult.data.items || [];
-        setMenu(menuData);
-      } else {
-        setMenu([]);
       }
     } catch (error) {
       toast.error("Failed to load workspace data");
@@ -1363,16 +1346,19 @@ export default function WorkspaceDetailPage() {
             <div className="space-y-2">
               <Label htmlFor="parentResource">Parent Resource</Label>
               <Select
-                value={resourceForm.parentId}
+                value={resourceForm.parentId || undefined}
                 onValueChange={(value) =>
-                  setResourceForm({ ...resourceForm, parentId: value })
+                  setResourceForm({
+                    ...resourceForm,
+                    parentId: value === "none" ? "" : value,
+                  })
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="None (top level)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None (top level)</SelectItem>
+                  <SelectItem value="none">None (top level)</SelectItem>
                   {resources.map((resource) => (
                     <SelectItem
                       key={resource.resourceId}

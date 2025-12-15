@@ -5,29 +5,54 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Users,
-  Shield,
-  Key,
-  FolderTree,
-  Settings,
   LogOut,
   ChevronDown,
   ChevronRight,
-  FileCheck,
-  Trash2,
-  UserCheck,
-  AlertTriangle,
-  DollarSign,
-  Receipt,
-  Waves,
-  Anchor,
-  Ship,
-  CheckCircle,
   Menu,
   X,
   User,
-  ClipboardList,
+  LayoutDashboard,
+  FileText,
+  Settings,
+  BarChart,
+  Calendar,
+  Users,
+  Building,
+  Briefcase,
+  Package,
+  ShoppingCart,
+  CreditCard,
+  Bell,
+  Mail,
+  MessageSquare,
+  Video,
+  Music,
+  Book,
+  BookOpen,
+  GraduationCap,
+  Award,
+  Star,
+  Heart,
+  Zap,
+  Target,
+  TrendingUp,
+  Activity,
+  PieChart,
+  Grid,
+  List,
+  Layers,
+  Box,
+  Archive,
+  Folder,
+  File,
+  Database,
+  Server,
+  Cloud,
+  Globe,
+  Map,
+  Navigation,
+  Compass,
+  ImageIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -46,127 +71,76 @@ import { useAuthStore, useWorkspaceStore, useUIStore } from "@/store";
 import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
 import { apiGet } from "@/lib/api-client";
 
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children?: { title: string; href: string }[];
+interface MenuResource {
+  resourceId: string;
+  name: string;
+  url: string;
+  parentId: string | null;
+  children: MenuResource[];
 }
 
-const navItems: NavItem[] = [
-  {
-    title: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Certification & Registration",
-    href: "#",
-    icon: FileCheck,
-    children: [
-      { title: "Vessel Certification", href: "/certification/vessels" },
-      { title: "Registration Services", href: "/certification/registration" },
-      { title: "Document Management", href: "/certification/documents" },
-    ],
-  },
-  {
-    title: "Waste Management",
-    href: "#",
-    icon: Trash2,
-    children: [
-      { title: "Waste Tracking", href: "/waste/tracking" },
-      { title: "Disposal Method", href: "/waste/disposal" },
-      { title: "Facilities", href: "/waste/facilities" },
-    ],
-  },
-  {
-    title: "Seafarer Certification & License",
-    href: "#",
-    icon: UserCheck,
-    children: [
-      { title: "Overview", href: "/seafarer/overview" },
-      { title: "Applications", href: "/seafarer/applications" },
-      { title: "Seafarer Registry", href: "/seafarer/registry" },
-      { title: "Accredited MIIs", href: "/seafarer/miis" },
-    ],
-  },
-  {
-    title: "Incident & Risk Management",
-    href: "#",
-    icon: AlertTriangle,
-    children: [
-      { title: "Incident Report", href: "/incidents/report" },
-      { title: "Risk Assessment", href: "/incidents/assessment" },
-    ],
-  },
-  {
-    title: "Levies & Fees",
-    href: "#",
-    icon: DollarSign,
-    children: [
-      { title: "Fee Management", href: "/levies/fees" },
-      { title: "Levy Collection", href: "/levies/collection" },
-    ],
-  },
-  {
-    title: "Invoices & Payments",
-    href: "#",
-    icon: Receipt,
-    children: [
-      { title: "Invoice Management", href: "/invoices/management" },
-      { title: "Payments", href: "/invoices/payments" },
-    ],
-  },
-  {
-    title: "Marine Environment Management",
-    href: "#",
-    icon: Waves,
-    children: [
-      { title: "Environmental Monitoring", href: "/marine/monitoring" },
-      { title: "Pollution Control", href: "/marine/pollution" },
-      { title: "Protected Areas", href: "/marine/protected" },
-    ],
-  },
-  {
-    title: "Cabotage & Terminal Operation",
-    href: "#",
-    icon: Anchor,
-    children: [
-      { title: "Cabotage Permits", href: "/cabotage/permits" },
-      { title: "Terminal Operations", href: "/cabotage/terminals" },
-    ],
-  },
-  {
-    title: "Vessel Surveillance & Tracking",
-    href: "#",
-    icon: Ship,
-    children: [
-      { title: "Vessel Tracking", href: "/surveillance/tracking" },
-      { title: "Vessel Surveillance", href: "/surveillance/monitoring" },
-    ],
-  },
-  {
-    title: "Compliance Monitoring & Checks",
-    href: "#",
-    icon: CheckCircle,
-    children: [{ title: "Compliance Checks", href: "/compliance/checks" }],
-  },
-  {
-    title: "User & Profile Management",
-    href: "#",
-    icon: Settings,
-    children: [
-      { title: "Workspace Management", href: "/workspaces" },
-      { title: "User Management", href: "/users" },
-      { title: "Profile Management", href: "/settings" },
-      { title: "Permission Management", href: "/permissions" },
-      { title: "Resources Management", href: "/resources" },
-      { title: "Role Management", href: "/roles" },
-      { title: "Role Resources Management", href: "/role-resources" },
-      { title: "User Role Management", href: "/user-roles" },
-    ],
-  },
+interface WorkspaceMenu {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceCode: string;
+  resources: MenuResource[];
+}
+
+// Array of available icons for random assignment
+const availableIcons = [
+  LayoutDashboard,
+  FileText,
+  Settings,
+  BarChart,
+  Calendar,
+  Users,
+  Building,
+  Briefcase,
+  Package,
+  ShoppingCart,
+  CreditCard,
+  Bell,
+  Mail,
+  MessageSquare,
+  ImageIcon,
+  Video,
+  Music,
+  Book,
+  BookOpen,
+  GraduationCap,
+  Award,
+  Star,
+  Heart,
+  Zap,
+  Target,
+  TrendingUp,
+  Activity,
+  PieChart,
+  Grid,
+  List,
+  Layers,
+  Box,
+  Archive,
+  Folder,
+  File,
+  Database,
+  Server,
+  Cloud,
+  Globe,
+  Map,
+  Navigation,
+  Compass,
 ];
+
+// Deterministic icon selection helpers (menus/workspaces always get same icon)
+const getIconForKey = (key: string) => {
+  const hash = key.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return availableIcons[hash % availableIcons.length];
+};
+
+const getIconForResource = (resourceId: string) => getIconForKey(resourceId);
+const getIconForWorkspace = (workspaceKey: string) =>
+  getIconForKey(workspaceKey);
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -177,39 +151,77 @@ export function Sidebar() {
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceResource[]>([]);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
+  const [workspaceMenus, setWorkspaceMenus] = useState<
+    Record<string, MenuResource[]>
+  >({});
+  const { setWorkspaces } = useWorkspaceStore();
 
-  // Load workspace menu when workspace changes
+  // Load workspaces and menu immediately after login
   useEffect(() => {
-    if (currentWorkspace?.workspaceId) {
-      loadWorkspaceMenu(currentWorkspace.workspaceId);
-    } else {
-      setWorkspaceMenu([]);
+    if (user) {
+      loadWorkspaces();
+      loadMenu();
     }
-  }, [currentWorkspace?.workspaceId]);
+  }, [user]);
 
-  const loadWorkspaceMenu = async (workspaceId: string) => {
+  const loadWorkspaces = async () => {
     try {
-      const result = await apiGet<PaginatedResponse<WorkspaceResource>>(
-        `/api/workspaces/${workspaceId}/menu`
+      const result = await apiGet<PaginatedResponse<Workspace>>(
+        "/api/workspaces?includeInactive=true"
       );
       if (result.success && result.data) {
-        // Extract the items array from the paginated response
-        setWorkspaceMenu(result.data.items || []);
+        const workspacesArray = Array.isArray(result.data)
+          ? result.data
+          : result.data.items || [];
+        const activeWorkspaces = workspacesArray.filter((ws) => !ws.isDeleted);
+        setWorkspaces(activeWorkspaces);
       } else {
-        setWorkspaceMenu([]);
+        setWorkspaces([]);
       }
     } catch (error) {
-      console.error("Failed to load workspace menu", error);
-      setWorkspaceMenu([]);
+      console.error("Failed to load workspaces", error);
+      setWorkspaces([]);
     }
   };
 
-  const toggleExpand = (title: string) => {
+  const loadMenu = async () => {
+    try {
+      const result = await apiGet<
+        WorkspaceMenu[] | PaginatedResponse<WorkspaceMenu>
+      >(`/api/menu`);
+      if (result.success && result.data) {
+        // Handle both direct array and PaginatedResponse formats
+        const menuData = Array.isArray(result.data)
+          ? result.data
+          : result.data.items || [];
+
+        // Convert to a map of workspaceId -> resources
+        const menuMap: Record<string, MenuResource[]> = {};
+        menuData.forEach((workspaceMenu) => {
+          menuMap[workspaceMenu.workspaceId] = workspaceMenu.resources;
+        });
+        setWorkspaceMenus(menuMap);
+      } else {
+        setWorkspaceMenus({});
+      }
+    } catch (error) {
+      console.error("Failed to load menu", error);
+      setWorkspaceMenus({});
+    }
+  };
+
+  const toggleWorkspace = (workspaceId: string) => {
+    setExpandedWorkspaces((prev) =>
+      prev.includes(workspaceId)
+        ? prev.filter((id) => id !== workspaceId)
+        : [...prev, workspaceId]
+    );
+  };
+
+  const toggleExpand = (id: string) => {
     setExpandedItems((prev) =>
-      prev.includes(title)
-        ? prev.filter((item) => item !== title)
-        : [...prev, title]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
@@ -255,13 +267,14 @@ export function Sidebar() {
   const NavLink = ({
     item,
     isChild = false,
+    icon,
   }: {
-    item: NavItem | { title: string; href: string };
+    item: { title: string; href: string };
     isChild?: boolean;
+    icon?: React.ComponentType<{ className?: string }>;
   }) => {
-    const hasIcon = "icon" in item;
-    const Icon = hasIcon ? item.icon : null;
     const active = isActive(item.href);
+    const Icon = icon;
 
     if (isChild) {
       return (
@@ -328,116 +341,163 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="space-y-1">
-          {/* Workspace Menu Items (if available) */}
-          {workspaceMenu.length > 0 && currentWorkspace ? (
+          {/* Workspaces with their menus */}
+          {workspaces.length > 0 && (
             <>
-              {workspaceMenu
-                .filter((item: WorkspaceResource) => !item.parentId) // Top-level items only
-                .map((menuItem: WorkspaceResource) => {
-                  const children = workspaceMenu.filter(
-                    (item: WorkspaceResource) =>
-                      item.parentId === menuItem.resourceId
-                  );
-                  return (
-                    <div key={menuItem.resourceId}>
-                      {children.length > 0 ? (
-                        <>
-                          <button
-                            onClick={() => toggleExpand(menuItem.resourceId)}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
-                              isChildActive(
-                                children.map((c: WorkspaceResource) => ({
-                                  title: c.resourceName,
-                                  href: c.url || "#",
-                                }))
-                              ) || expandedItems.includes(menuItem.resourceId)
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                : "text-sidebar-foreground hover:bg-sidebar-muted"
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <FolderTree className="h-5 w-5 flex-shrink-0" />
-                              <span className="text-left">
-                                {menuItem.resourceName}
-                              </span>
-                            </div>
-                            {expandedItems.includes(menuItem.resourceId) ? (
-                              <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                            )}
-                          </button>
-                          {expandedItems.includes(menuItem.resourceId) && (
-                            <div className="mt-1 space-y-1 ml-2">
-                              {children.map((child: WorkspaceResource) => (
-                                <NavLink
-                                  key={child.resourceId}
-                                  item={{
-                                    title: child.resourceName,
-                                    href: child.url || "#",
-                                  }}
-                                  isChild
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <NavLink
-                          item={{
-                            title: menuItem.resourceName,
-                            href: menuItem.url || "#",
-                          }}
-                        />
+              {workspaces.map((workspace) => {
+                const workspaceResources =
+                  workspaceMenus[workspace.workspaceId] || [];
+                const isWorkspaceExpanded = expandedWorkspaces.includes(
+                  workspace.workspaceId
+                );
+                const isWorkspaceActive =
+                  currentWorkspace?.workspaceId === workspace.workspaceId;
+
+                return (
+                  <div key={workspace.workspaceId}>
+                    <button
+                      onClick={() => {
+                        setCurrentWorkspace(workspace);
+                        toggleWorkspace(workspace.workspaceId);
+                      }}
+                      className={cn(
+                        "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
+                        isWorkspaceActive || isWorkspaceExpanded
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "text-sidebar-foreground hover:bg-sidebar-muted"
                       )}
-                    </div>
-                  );
-                })}
-              {/* Separator if both menu and nav items exist */}
-              {navItems.length > 0 && (
-                <div className="my-2 border-t border-sidebar-border" />
-              )}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {(() => {
+                          const WorkspaceIcon = getIconForWorkspace(
+                            workspace.workspaceId || workspace.name
+                          );
+                          return (
+                            <div
+                              className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
+                              style={{
+                                backgroundColor: `${workspace.color || "#6366F1"}1A`, // light tint
+                                color: workspace.color || "#6366F1",
+                              }}
+                            >
+                              <WorkspaceIcon className="h-4 w-4" />
+                            </div>
+                          );
+                        })()}
+                        <span className="text-left truncate">
+                          {workspace.name}
+                        </span>
+                      </div>
+                      {isWorkspaceExpanded ? (
+                        <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                    {isWorkspaceExpanded && workspaceResources.length > 0 && (
+                      <div className="mt-1 space-y-1 ml-2">
+                        {workspaceResources.map((resource) => {
+                          const hasChildren =
+                            resource.children && resource.children.length > 0;
+                          const isResourceExpanded = expandedItems.includes(
+                            resource.resourceId
+                          );
+
+                          return (
+                            <div key={resource.resourceId}>
+                              {hasChildren ? (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      toggleExpand(resource.resourceId)
+                                    }
+                                    className={cn(
+                                      "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg transition-colors ml-6 relative",
+                                      "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-sidebar-muted-foreground/30",
+                                      isResourceExpanded ||
+                                        isChildActive(
+                                          resource.children.map((c) => ({
+                                            title: c.name,
+                                            href: c.url || "#",
+                                          }))
+                                        )
+                                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                        : "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted"
+                                    )}
+                                  >
+                                    <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
+                                    <div className="flex items-center gap-2">
+                                      {(() => {
+                                        const ResourceIcon = getIconForResource(
+                                          resource.resourceId
+                                        );
+                                        return (
+                                          <ResourceIcon className="h-4 w-4 flex-shrink-0" />
+                                        );
+                                      })()}
+                                      <span className="text-left">
+                                        {resource.name}
+                                      </span>
+                                    </div>
+                                    {isResourceExpanded ? (
+                                      <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
+                                    ) : (
+                                      <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+                                    )}
+                                  </button>
+                                  {isResourceExpanded && (
+                                    <div className="mt-1 space-y-1">
+                                      {resource.children.map((child) => {
+                                        const ChildIcon = getIconForResource(
+                                          child.resourceId
+                                        );
+                                        return (
+                                          <NavLink
+                                            key={child.resourceId}
+                                            item={{
+                                              title: child.name,
+                                              href: child.url || "#",
+                                            }}
+                                            isChild
+                                            icon={ChildIcon}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                (() => {
+                                  const ResourceIcon = getIconForResource(
+                                    resource.resourceId
+                                  );
+                                  return (
+                                    <NavLink
+                                      item={{
+                                        title: resource.name,
+                                        href: resource.url || "#",
+                                      }}
+                                      isChild
+                                      icon={ResourceIcon}
+                                    />
+                                  );
+                                })()
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {isWorkspaceExpanded && workspaceResources.length === 0 && (
+                      <div className="ml-6 px-3 py-2 text-xs text-sidebar-muted-foreground">
+                        No menu items available
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </>
-          ) : null}
-          {/* Default Navigation Items */}
-          {navItems.map((item) => (
-            <div key={item.title}>
-              {item.children ? (
-                <>
-                  <button
-                    onClick={() => toggleExpand(item.title)}
-                    className={cn(
-                      "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
-                      isChildActive(item.children) ||
-                        expandedItems.includes(item.title)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        : "text-sidebar-foreground hover:bg-sidebar-muted"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon className="h-5 w-5 flex-shrink-0" />
-                      <span className="text-left">{item.title}</span>
-                    </div>
-                    {expandedItems.includes(item.title) ? (
-                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                    )}
-                  </button>
-                  {expandedItems.includes(item.title) && (
-                    <div className="mt-1 space-y-1 ml-2">
-                      {item.children.map((child) => (
-                        <NavLink key={child.href} item={child} isChild />
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <NavLink item={item} />
-              )}
-            </div>
-          ))}
+          )}
         </nav>
       </ScrollArea>
 
