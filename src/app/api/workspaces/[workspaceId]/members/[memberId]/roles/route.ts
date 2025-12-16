@@ -9,15 +9,15 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { roleIds } = body;
+    const { workspaceRoleId } = body;
 
-    if (!roleIds || !Array.isArray(roleIds) || roleIds.length === 0) {
+    if (!workspaceRoleId) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "At least one role ID is required",
+            message: "workspaceRoleId is required",
           },
         },
         { status: 400 }
@@ -27,7 +27,7 @@ export async function POST(
     const response = await apiPost<WorkspaceMembersRole>(
       `/api/workspaces/${params.workspaceId}/members/${params.memberId}/roles`,
       {
-        roleIds,
+        workspaceRoleId,
       }
     );
 

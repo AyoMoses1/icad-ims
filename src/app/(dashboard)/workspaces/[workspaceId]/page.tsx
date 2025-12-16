@@ -515,19 +515,29 @@ export default function WorkspaceDetailPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await apiPost<any>(
-        `/api/workspaces/${workspaceId}/members/${selectedMember.workspaceMemberId}/roles`,
-        { roleIds: selectedRoleIds }
+      // Assign each role individually since the endpoint accepts one workspaceRoleId at a time
+      const results = await Promise.all(
+        selectedRoleIds.map((workspaceRoleId) =>
+          apiPost<any>(
+            `/api/workspaces/${workspaceId}/members/${selectedMember.workspaceMemberId}/roles`,
+            { workspaceRoleId }
+          )
+        )
       );
 
-      if (result.success) {
+      // Check if all assignments were successful
+      const allSuccessful = results.every((result) => result.success);
+      if (allSuccessful) {
         toast.success("Roles assigned successfully");
         setIsAssignRolesOpen(false);
         setSelectedRoleIds([]);
         setSelectedMember(null);
         loadWorkspaceData();
       } else {
-        toast.error(result.error?.message || "Failed to assign roles");
+        const failedResults = results.filter((result) => !result.success);
+        const errorMessage =
+          failedResults[0]?.error?.message || "Failed to assign some roles";
+        toast.error(errorMessage);
       }
     } catch (error) {
       toast.error(
@@ -585,11 +595,20 @@ export default function WorkspaceDetailPage() {
       return;
     }
 
+    if (!roleForm.description.trim()) {
+      toast.error("Role description is required");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await apiPost<WorkspaceRole>(
         `/api/workspaces/${workspaceId}/roles`,
-        roleForm
+        {
+          name: roleForm.name,
+          roleDescription: roleForm.description,
+          isActive: roleForm.isActive,
+        }
       );
 
       if (result.success) {
@@ -1406,7 +1425,7 @@ export default function WorkspaceDetailPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="roleDescription">Description</Label>
+              <Label htmlFor="roleDescription">Description *</Label>
               <Textarea
                 id="roleDescription"
                 value={roleForm.description}
@@ -1414,6 +1433,7 @@ export default function WorkspaceDetailPage() {
                   setRoleForm({ ...roleForm, description: e.target.value })
                 }
                 rows={3}
+                required
               />
             </div>
           </div>

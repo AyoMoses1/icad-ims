@@ -69,7 +69,7 @@ export async function POST(
       `/api/workspaces/${params.workspaceId}/roles`,
       {
         name,
-        description: description || "",
+        roleDescription: description || "",
         isActive: isActive !== undefined ? isActive : true,
       }
     );

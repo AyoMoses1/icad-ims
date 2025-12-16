@@ -152,38 +152,15 @@ export function Sidebar() {
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
-  const [workspaceMenus, setWorkspaceMenus] = useState<
-    Record<string, MenuResource[]>
-  >({});
+  const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
   const { setWorkspaces } = useWorkspaceStore();
 
-  // Load workspaces and menu immediately after login
+  // Load menu immediately after login - menu endpoint contains workspaces user has access to
   useEffect(() => {
     if (user) {
-      loadWorkspaces();
       loadMenu();
     }
   }, [user]);
-
-  const loadWorkspaces = async () => {
-    try {
-      const result = await apiGet<PaginatedResponse<Workspace>>(
-        "/api/workspaces?includeInactive=true"
-      );
-      if (result.success && result.data) {
-        const workspacesArray = Array.isArray(result.data)
-          ? result.data
-          : result.data.items || [];
-        const activeWorkspaces = workspacesArray.filter((ws) => !ws.isDeleted);
-        setWorkspaces(activeWorkspaces);
-      } else {
-        setWorkspaces([]);
-      }
-    } catch (error) {
-      console.error("Failed to load workspaces", error);
-      setWorkspaces([]);
-    }
-  };
 
   const loadMenu = async () => {
     try {
@@ -196,18 +173,30 @@ export function Sidebar() {
           ? result.data
           : result.data.items || [];
 
-        // Convert to a map of workspaceId -> resources
-        const menuMap: Record<string, MenuResource[]> = {};
-        menuData.forEach((workspaceMenu) => {
-          menuMap[workspaceMenu.workspaceId] = workspaceMenu.resources;
-        });
-        setWorkspaceMenus(menuMap);
+        // Store the full menu data
+        setWorkspaceMenus(menuData);
+
+        // Also update the workspace store with workspaces from menu
+        const workspacesFromMenu: Workspace[] = menuData.map((menu) => ({
+          workspaceId: menu.workspaceId,
+          name: menu.workspaceName,
+          description: "",
+          isActive: true,
+          isDeleted: false,
+          color: undefined,
+          createdBy: "",
+          createdAt: "",
+          updatedAt: "",
+        }));
+        setWorkspaces(workspacesFromMenu);
       } else {
-        setWorkspaceMenus({});
+        setWorkspaceMenus([]);
+        setWorkspaces([]);
       }
     } catch (error) {
       console.error("Failed to load menu", error);
-      setWorkspaceMenus({});
+      setWorkspaceMenus([]);
+      setWorkspaces([]);
     }
   };
 
@@ -341,24 +330,36 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="space-y-1">
-          {/* Workspaces with their menus */}
-          {workspaces.length > 0 && (
+          {/* Workspaces with their menus from /api/menu endpoint */}
+          {workspaceMenus.length > 0 && (
             <>
-              {workspaces.map((workspace) => {
-                const workspaceResources =
-                  workspaceMenus[workspace.workspaceId] || [];
+              {workspaceMenus.map((workspaceMenu) => {
+                const workspaceResources = workspaceMenu.resources || [];
                 const isWorkspaceExpanded = expandedWorkspaces.includes(
-                  workspace.workspaceId
+                  workspaceMenu.workspaceId
                 );
                 const isWorkspaceActive =
-                  currentWorkspace?.workspaceId === workspace.workspaceId;
+                  currentWorkspace?.workspaceId === workspaceMenu.workspaceId;
+
+                // Create workspace object for setCurrentWorkspace
+                const workspace: Workspace = {
+                  workspaceId: workspaceMenu.workspaceId,
+                  name: workspaceMenu.workspaceName,
+                  description: "",
+                  isActive: true,
+                  isDeleted: false,
+                  color: undefined,
+                  createdBy: "",
+                  createdAt: "",
+                  updatedAt: "",
+                };
 
                 return (
-                  <div key={workspace.workspaceId}>
+                  <div key={workspaceMenu.workspaceId}>
                     <button
                       onClick={() => {
                         setCurrentWorkspace(workspace);
-                        toggleWorkspace(workspace.workspaceId);
+                        toggleWorkspace(workspaceMenu.workspaceId);
                       }}
                       className={cn(
                         "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
@@ -370,14 +371,15 @@ export function Sidebar() {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {(() => {
                           const WorkspaceIcon = getIconForWorkspace(
-                            workspace.workspaceId || workspace.name
+                            workspaceMenu.workspaceId ||
+                              workspaceMenu.workspaceName
                           );
                           return (
                             <div
                               className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
                               style={{
-                                backgroundColor: `${workspace.color || "#6366F1"}1A`, // light tint
-                                color: workspace.color || "#6366F1",
+                                backgroundColor: `#6366F11A`, // light tint
+                                color: "#6366F1",
                               }}
                             >
                               <WorkspaceIcon className="h-4 w-4" />
@@ -385,7 +387,7 @@ export function Sidebar() {
                           );
                         })()}
                         <span className="text-left truncate">
-                          {workspace.name}
+                          {workspaceMenu.workspaceName}
                         </span>
                       </div>
                       {isWorkspaceExpanded ? (
