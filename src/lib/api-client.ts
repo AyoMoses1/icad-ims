@@ -21,9 +21,10 @@ function getApiBaseUrl(): string {
         "\n  2. Restart your Next.js dev server (npm run dev)",
         "\n  3. Clear .next cache if needed (rm -rf .next)"
       );
-    } else if (process.env.NODE_ENV === "development") {
-      console.log("✅ API Base URL loaded:", baseUrl);
     }
+    // else if (process.env.NODE_ENV === "development") {
+    //   console.log("✅ API Base URL loaded:", baseUrl);
+    // }
   }
 
   return baseUrl;
@@ -68,7 +69,7 @@ export async function apiClient<T>(
 ): Promise<ApiResponse<T>> {
   const API_BASE_URL = getApiBaseUrl();
 
-  console.log({ API_BASE_URL });
+  // console.log({ API_BASE_URL });
 
   if (!API_BASE_URL) {
     const errorMsg = `NEXT_PUBLIC_API_BASE_URL is not configured. Current value: "${process.env.NEXT_PUBLIC_API_BASE_URL}". Please check your .env file and restart the dev server.`;
@@ -79,14 +80,14 @@ export async function apiClient<T>(
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Debug logging in development
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-    console.log("🌐 API Request:", {
-      method: options.method || "GET",
-      url,
-      endpoint,
-      baseUrl: API_BASE_URL,
-    });
-  }
+  // if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  //   console.log("🌐 API Request:", {
+  //     method: options.method || "GET",
+  //     url,
+  //     endpoint,
+  //     baseUrl: API_BASE_URL,
+  //   });
+  // }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

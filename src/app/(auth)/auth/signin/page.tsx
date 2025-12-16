@@ -91,6 +91,7 @@ export default function SignInPage() {
           firstName: "",
           lastName: "",
           fullName: data.email,
+          country: "",
           status: "ACTIVE" as UserStatus,
           emailVerified: false,
           phoneVerified: false,

@@ -61,46 +61,46 @@ export interface UserWithFullName extends User {
 }
 
 export interface UsersListResponse {
-  "apiVersion": "string",
-  "success": boolean,
-  "code": string,
-  "message": string,
-  "requestId": string,
-  "data": {
-    "items":[ 
+  apiVersion: string;
+  success: boolean;
+  code: string;
+  message: string;
+  requestId: string;
+  data: {
+    items: [
       {
-        "id": string,
-        "userName": string,
-        "email": string,
-        "firstName": string,
-        "middleName": string,
-        "lastName": string,
-        "dateOfBirth": string,
-        "country": string,
-        "status": UserStatus,
-        "emailVerified": boolean,
-        "phoneVerified": boolean,
-        "twoFactorEnabled": boolean,
-          "isActive": boolean,
-        "createdAt": string,
-        "updatedAt": string,
-        "dateCreated": string,
-        "dateModified": string,
-        "fullName": string,
-        "tenantId": string
-      }
-    ],
-    "totalCount": number,
-    "pageNumber": number,
-    "pageSize": number,
-    "totalPages": number,
-    "hasPreviousPage": boolean,
-    "hasNextPage": boolean
-  },
-  "error": {
-    "message": "string",
-    "code": "string"
-  }
+        id: string;
+        userName: string;
+        email: string;
+        firstName: string;
+        middleName: string;
+        lastName: string;
+        dateOfBirth: string;
+        country: string;
+        status: UserStatus;
+        emailVerified: boolean;
+        phoneVerified: boolean;
+        twoFactorEnabled: boolean;
+        isActive: boolean;
+        createdAt: string;
+        updatedAt: string;
+        dateCreated: string;
+        dateModified: string;
+        fullName: string;
+        tenantId: string;
+      },
+    ];
+    totalCount: number;
+    pageNumber: number;
+    pageSize: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  error: {
+    message: string;
+    code: string;
+  };
 }
 
 export interface Address {
@@ -235,6 +235,7 @@ export interface WorkspaceResource {
 export interface Permission {
   permissionId: string;
   permissionName: string;
+  permissionCode: string;
   description: string;
   isActive: boolean;
   createdBy: string;
