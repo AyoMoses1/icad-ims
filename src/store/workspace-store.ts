@@ -154,6 +154,3 @@ export const useWorkspaceResources = () =>
   useWorkspaceStore((state) => state.resources);
 export const useWorkspaceRoles = () =>
   useWorkspaceStore((state) => state.roles);
-
-
-

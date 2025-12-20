@@ -68,18 +68,23 @@ export default function SignInPage() {
         grant_type: grantType,
         username: data.email,
         password: data.password,
+        scope: "openid profile email",
       });
 
-      console.log('Token Response:', tokenResponse);
-      console.log('Token Response access_token:', tokenResponse.access_token);
-      console.log('Token Response access_token type:', typeof tokenResponse.access_token);
-      console.log('Token Response access_token length:', tokenResponse.access_token?.length);
+      console.log("Token Response:", tokenResponse);
+      console.log("Token Response access_token:", tokenResponse.access_token);
+      console.log(
+        "Token Response access_token type:",
+        typeof tokenResponse.access_token
+      );
+      console.log(
+        "Token Response access_token length:",
+        tokenResponse.access_token?.length
+      );
 
       // Calculate expiration time (default to 1 hour if expires_in not provided)
       const expiresIn = tokenResponse.expires_in || 3600;
-      const expiresAt = new Date(
-        Date.now() + expiresIn * 1000
-      ).toISOString();
+      const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
       // Temporarily set token in store to fetch user info
       const tempSession = {
@@ -131,8 +136,10 @@ export default function SignInPage() {
         dateOfBirth: userInfo.dateOfBirth,
         country: userInfo.country || "",
         status: (userInfo.status as UserStatus) || UserStatus.ACTIVE,
-        emailVerified: userInfo.emailVerified || userInfo.email_verified || false,
-        phoneVerified: userInfo.phoneVerified || userInfo.phone_verified || false,
+        emailVerified:
+          userInfo.emailVerified || userInfo.email_verified || false,
+        phoneVerified:
+          userInfo.phoneVerified || userInfo.phone_verified || false,
         twoFactorEnabled: userInfo.twoFactorEnabled || false,
         createdAt: userInfo.createdAt || new Date().toISOString(),
         updatedAt: userInfo.updatedAt || new Date().toISOString(),
@@ -141,51 +148,56 @@ export default function SignInPage() {
       // Create full session with user data
       const accessToken = tokenResponse.access_token;
       const refreshToken = tokenResponse.refresh_token || "";
-      
-      console.log('Before creating session:', {
+
+      console.log("Before creating session:", {
         accessTokenExists: !!accessToken,
         accessTokenType: typeof accessToken,
         accessTokenLength: accessToken?.length,
-        refreshTokenExists: !!refreshToken
+        refreshTokenExists: !!refreshToken,
       });
-      
+
       const session = {
         user: {
           ...user,
-          fullName: userInfo.fullName || `${user.firstName} ${user.lastName}`.trim() || user.email,
+          fullName:
+            userInfo.fullName ||
+            `${user.firstName} ${user.lastName}`.trim() ||
+            user.email,
         },
         token: accessToken,
         refreshToken: refreshToken,
         expiresAt,
       };
 
-      console.log('Sign In - Session to Set:', {
+      console.log("Sign In - Session to Set:", {
         hasToken: !!session.token,
-        tokenValue: session.token ? session.token.substring(0, 50) + '...' : 'MISSING',
+        tokenValue: session.token
+          ? session.token.substring(0, 50) + "..."
+          : "MISSING",
         tokenLength: session.token?.length,
         tokenType: typeof session.token,
         user: session.user.email,
-        refreshToken: session.refreshToken?.substring(0, 50) + '...',
-        expiresAt: session.expiresAt
+        refreshToken: session.refreshToken?.substring(0, 50) + "...",
+        expiresAt: session.expiresAt,
       });
 
       setSession(session);
-      
+
       // Wait a bit and check again
       setTimeout(() => {
         const storeState = useAuthStore.getState();
-        console.log('Sign In - Store State after 100ms:', {
+        console.log("Sign In - Store State after 100ms:", {
           hasToken: !!storeState.token,
           tokenLength: storeState.token?.length,
           isAuthenticated: storeState.isAuthenticated,
-          userEmail: storeState.user?.email
+          userEmail: storeState.user?.email,
         });
       }, 100);
-      
+
       toast.success("Welcome back!", {
         description: "You have successfully signed in.",
       });
-      
+
       // Use replace instead of push to prevent back button issues
       router.replace("/");
     } catch (error) {
@@ -308,9 +320,3 @@ export default function SignInPage() {
     </div>
   );
 }
-
-
-
-
-
-

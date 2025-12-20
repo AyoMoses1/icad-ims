@@ -111,6 +111,3 @@ export const useSidebarCollapsed = () =>
 export const useBreadcrumbs = () => useUIStore((state) => state.breadcrumbs);
 export const useActiveModal = () => useUIStore((state) => state.activeModal);
 export const useModalData = () => useUIStore((state) => state.modalData);
-
-
-
