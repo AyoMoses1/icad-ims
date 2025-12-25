@@ -50,53 +50,62 @@ export default function PermissionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const [filterType, setFilterType] = useState<"all" | "tenant" | "system">(
+    "all"
+  );
 
   const [formData, setFormData] = useState({
     permissionName: "",
+    permissionCode: "",
     description: "",
   });
 
-  const loadPermissions = useCallback(async (query?: string, pageNumber?: number) => {
-    setIsLoading(true);
-    try {
-      // Build query parameters
-      const params = new URLSearchParams();
-      const searchValue = query !== undefined ? query : searchQuery;
-      const page = pageNumber !== undefined ? pageNumber : currentPage;
-      
-      if (searchValue) {
-        params.append("Query", searchValue);
-      }
-      params.append("PageNumber", String(page));
-      params.append("PageSize", String(pageSize));
-      const skip = (page - 1) * pageSize;
-      params.append("Skip", String(skip));
+  const loadPermissions = useCallback(
+    async (query?: string, pageNumber?: number) => {
+      setIsLoading(true);
+      try {
+        // Build query parameters
+        const params = new URLSearchParams();
+        const searchValue = query !== undefined ? query : searchQuery;
+        const page = pageNumber !== undefined ? pageNumber : currentPage;
 
-      const queryString = params.toString();
-      const endpoint = `/api/permissions${queryString ? `?${queryString}` : ""}`;
-      
-      const result = await apiGet<Permission[]>(endpoint);
-      if (result.success && result.data) {
-        // Handle both array and paginated response formats
-        const permissionsData = Array.isArray(result.data) 
-          ? result.data 
-          : (result.data as any)?.items || result.data;
-        setPermissions(permissionsData);
-        
-        // Update total count if available in response
-        if ((result as any).totalCount !== undefined) {
-          setTotalCount((result as any).totalCount);
-        } else if (Array.isArray(permissionsData)) {
-          setTotalCount(permissionsData.length);
+        if (searchValue) {
+          params.append("Query", searchValue);
         }
+        params.append("PageNumber", String(page));
+        params.append("PageSize", String(pageSize));
+        const skip = (page - 1) * pageSize;
+        params.append("Skip", String(skip));
+
+        const queryString = params.toString();
+        const endpoint = `/api/permissions${queryString ? `?${queryString}` : ""}`;
+
+        const result = await apiGet<Permission[]>(endpoint);
+        if (result.success && result.data) {
+          // Handle both array and paginated response formats
+          const permissionsData = Array.isArray(result.data)
+            ? result.data
+            : (result.data as any)?.items || result.data;
+          setPermissions(permissionsData);
+
+          // Update total count if available in response
+          if ((result as any).totalCount !== undefined) {
+            setTotalCount((result as any).totalCount);
+          } else if (Array.isArray(permissionsData)) {
+            setTotalCount(permissionsData.length);
+          }
+        }
+      } catch (error) {
+        toast.error("Failed to load permissions");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      toast.error("Failed to load permissions");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [searchQuery, currentPage, pageSize]);
+    },
+    [searchQuery, currentPage, pageSize]
+  );
 
   // Initial load
   useEffect(() => {
@@ -109,22 +118,25 @@ export default function PermissionsPage() {
   }, [currentPage, loadPermissions]);
 
   // Debounced search handler
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1); // Reset to first page on new search
+  const handleSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      setCurrentPage(1); // Reset to first page on new search
 
-    // Clear existing timeout
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
+      // Clear existing timeout
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
 
-    // Set new timeout for debounced search (3 seconds)
-    const timeout = setTimeout(() => {
-      loadPermissions(query, 1);
-    }, 3000); // 3 second debounce
+      // Set new timeout for debounced search (3 seconds)
+      const timeout = setTimeout(() => {
+        loadPermissions(query, 1);
+      }, 3000); // 3 second debounce
 
-    setSearchTimeout(timeout);
-  }, [loadPermissions, searchTimeout]);
+      setSearchTimeout(timeout);
+    },
+    [loadPermissions, searchTimeout]
+  );
 
   // Handle page change
   const handlePageChange = useCallback((page: number) => {
@@ -148,7 +160,21 @@ export default function PermissionsPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await apiPostAuth<any>("/api/permissions", formData);
+      // Auto-generate permission code if not provided
+      const permissionCode =
+        formData.permissionCode ||
+        formData.permissionName
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_")
+          .replace(/_+/g, "_");
+
+      const payload = {
+        permissionName: formData.permissionName,
+        permissionCode: permissionCode,
+        description: formData.description || null,
+      };
+
+      const result = await apiPostAuth<any>("/api/permissions", payload);
 
       // Handle both wrapped and unwrapped response formats
       if ((result as any)?.data || (result as any)?.success) {
@@ -160,7 +186,9 @@ export default function PermissionsPage() {
         toast.error("Failed to create permission");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create permission");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create permission"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -172,12 +200,15 @@ export default function PermissionsPage() {
     setIsLoadingPermission(true);
 
     try {
-      const result = await apiGet<Permission>(`/api/permissions/${permission.permissionId}`);
-      
+      const result = await apiGet<Permission>(
+        `/api/permissions/${permission.permissionId}`
+      );
+
       if (result.success && result.data) {
         const permissionData = result.data;
         setFormData({
           permissionName: permissionData.permissionName,
+          permissionCode: permissionData.permissionCode || "",
           description: permissionData.description || "",
         });
         setSelectedPermission(permissionData);
@@ -186,6 +217,7 @@ export default function PermissionsPage() {
         // Fallback to using the permission from the table
         setFormData({
           permissionName: permission.permissionName,
+          permissionCode: permission.permissionCode || "",
           description: permission.description || "",
         });
       }
@@ -195,6 +227,7 @@ export default function PermissionsPage() {
       // Fallback to using the permission from the table
       setFormData({
         permissionName: permission.permissionName,
+        permissionCode: permission.permissionCode || "",
         description: permission.description || "",
       });
     } finally {
@@ -212,9 +245,20 @@ export default function PermissionsPage() {
 
     setIsSubmitting(true);
     try {
+      // Only allow editing tenant-scoped permissions (not system permissions)
+      if (selectedPermission.isSystemPermission) {
+        toast.error("System permissions cannot be edited");
+        return;
+      }
+
+      const payload = {
+        permissionName: formData.permissionName,
+        description: formData.description || null,
+      };
+
       const result = await apiPut<Permission>(
         `/api/permissions/${selectedPermission.permissionId}`,
-        formData
+        payload
       );
 
       if (result.success) {
@@ -227,7 +271,9 @@ export default function PermissionsPage() {
         toast.error(result.error?.message || "Failed to update permission");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update permission");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update permission"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -236,9 +282,18 @@ export default function PermissionsPage() {
   const handleDelete = async () => {
     if (!selectedPermission) return;
 
+    // Only allow deleting tenant-scoped permissions (not system permissions)
+    if (selectedPermission.isSystemPermission) {
+      toast.error("System permissions cannot be deleted");
+      setIsDeleteOpen(false);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const result = await apiDelete(`/api/permissions/${selectedPermission.permissionId}`);
+      const result = await apiDelete(
+        `/api/permissions/${selectedPermission.permissionId}`
+      );
 
       if (result.success) {
         toast.success("Permission deleted successfully");
@@ -249,7 +304,9 @@ export default function PermissionsPage() {
         toast.error(result.error?.message || "Failed to delete permission");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete permission");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete permission"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -258,6 +315,7 @@ export default function PermissionsPage() {
   const resetForm = () => {
     setFormData({
       permissionName: "",
+      permissionCode: "",
       description: "",
     });
   };
@@ -271,11 +329,32 @@ export default function PermissionsPage() {
           <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
             <Key className="h-5 w-5 text-green-600" />
           </div>
-          <div>
-            <p className="font-medium">{permission?.permissionName?.includes(":") ? permission?.permissionName.split(":")[1] : permission?.permissionName}</p>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="font-medium">
+                {permission?.permissionName?.includes(":")
+                  ? permission?.permissionName.split(":")[1]
+                  : permission?.permissionName}
+              </p>
+              {permission.isSystemPermission && (
+                <Badge variant="outline" className="text-xs">
+                  System
+                </Badge>
+              )}
+              {!permission.isSystemPermission && permission.tenantId && (
+                <Badge variant="secondary" className="text-xs">
+                  Custom
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {permission.description}
             </p>
+            {permission.permissionCode && (
+              <p className="text-xs text-muted-foreground font-mono mt-1">
+                {permission.permissionCode}
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -307,20 +386,24 @@ export default function PermissionsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openEditDialog(permission)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedPermission(permission);
-                setIsDeleteOpen(true);
-              }}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
+            {!permission.isSystemPermission && (
+              <DropdownMenuItem onClick={() => openEditDialog(permission)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+            )}
+            {!permission.isSystemPermission && (
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedPermission(permission);
+                  setIsDeleteOpen(true);
+                }}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -332,7 +415,7 @@ export default function PermissionsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Permissions"
-        description="Manage granular permissions that can be assigned to roles"
+        description="Manage granular permissions that can be assigned to roles. Custom permissions are scoped to your organization."
         actions={
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -341,9 +424,43 @@ export default function PermissionsPage() {
         }
       />
 
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b">
+        <Button
+          variant={filterType === "all" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setFilterType("all")}
+          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+        >
+          All Permissions
+        </Button>
+        <Button
+          variant={filterType === "tenant" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setFilterType("tenant")}
+          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+        >
+          Custom (Tenant)
+        </Button>
+        <Button
+          variant={filterType === "system" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setFilterType("system")}
+          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+        >
+          System
+        </Button>
+      </div>
+
       <DataTable
         columns={columns}
-        data={permissions}
+        data={
+          filterType === "all"
+            ? permissions
+            : filterType === "tenant"
+              ? permissions.filter((p) => !p.isSystemPermission && p.tenantId)
+              : permissions.filter((p) => p.isSystemPermission)
+        }
         isLoading={isLoading}
         emptyMessage="No permissions found"
         emptyDescription="Create permissions to define granular access control."
@@ -352,7 +469,14 @@ export default function PermissionsPage() {
         onSearch={handleSearch}
         currentPage={currentPage}
         pageSize={pageSize}
-        totalCount={totalCount}
+        totalCount={
+          filterType === "all"
+            ? totalCount
+            : filterType === "tenant"
+              ? permissions.filter((p) => !p.isSystemPermission && p.tenantId)
+                  .length
+              : permissions.filter((p) => p.isSystemPermission).length
+        }
         onPageChange={handlePageChange}
       />
 
@@ -376,6 +500,26 @@ export default function PermissionsPage() {
                   setFormData({ ...formData, permissionName: e.target.value })
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="permissionCode">Permission Code (Optional)</Label>
+              <Input
+                id="permissionCode"
+                placeholder="e.g., VIEW_REPORTS (auto-generated if empty)"
+                value={formData.permissionCode}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    permissionCode: e.target.value
+                      .toUpperCase()
+                      .replace(/[^A-Z0-9_]/g, "_"),
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Use uppercase letters, numbers, and underscores only. Leave
+                empty to auto-generate from name.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -418,33 +562,41 @@ export default function PermissionsPage() {
           {isLoadingPermission ? (
             <div className="flex flex-col items-center justify-center py-8">
               <LoadingSpinner size="lg" />
-              <p className="mt-4 text-sm text-muted-foreground">Loading permission details...</p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Loading permission details...
+              </p>
             </div>
           ) : (
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-permissionName">Permission Name *</Label>
-              <Input
-                id="edit-permissionName"
-                placeholder="e.g., View Reports"
-                value={formData.permissionName}
-                onChange={(e) =>
-                  setFormData({ ...formData, permissionName: e.target.value })
-                }
-              />
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-permissionName">Permission Name *</Label>
+                <Input
+                  id="edit-permissionName"
+                  placeholder="e.g., View Reports"
+                  value={formData.permissionName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, permissionName: e.target.value })
+                  }
+                  disabled={selectedPermission?.isSystemPermission}
+                />
+                {selectedPermission?.isSystemPermission && (
+                  <p className="text-xs text-muted-foreground">
+                    System permissions cannot be edited
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  placeholder="Describe what this permission allows"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                placeholder="Describe what this permission allows"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-              />
-            </div>
-          </div>
           )}
           <DialogFooter>
             <Button
@@ -458,8 +610,8 @@ export default function PermissionsPage() {
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleEdit} 
+            <Button
+              onClick={handleEdit}
               loading={isSubmitting}
               disabled={isLoadingPermission}
             >
@@ -483,15 +635,4 @@ export default function PermissionsPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
 

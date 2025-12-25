@@ -133,10 +133,12 @@ export interface IdentificationDocument {
 export interface Tenant {
   tenantId: string;
   userId: string;
-  name: string;
+  name?: string | null;
   createdAt: string;
-  isActive: boolean;
-  createdBy: string;
+  isActive?: boolean;
+  createdBy?: string;
+  role?: string | null;
+  joinedAt?: string | null;
 }
 
 export interface Workspace {
@@ -236,11 +238,13 @@ export interface Permission {
   permissionId: string;
   permissionName: string;
   permissionCode: string;
-  description: string;
-  isActive: boolean;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  description?: string | null;
+  isActive?: boolean;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  tenantId?: string | null;
+  isSystemPermission?: boolean;
 }
 
 export interface WorkspaceRolePermission {
@@ -485,3 +489,65 @@ export interface FormState {
 }
 
 export type FormMode = "create" | "edit" | "view";
+
+// ============================================================================
+// Invitation Types
+// ============================================================================
+
+export enum InvitationStatus {
+  Pending = "Pending",
+  Accepted = "Accepted",
+  Declined = "Declined",
+  Expired = "Expired",
+}
+
+export interface InvitationDto {
+  invitationId: string;
+  tenantId?: string | null;
+  tenantName?: string | null;
+  email?: string | null;
+  userId?: string | null;
+  invitedByUserId: string;
+  invitedByName?: string | null;
+  roleId?: string | null;
+  roleName?: string | null;
+  invitationToken?: string | null;
+  status: InvitationStatus;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  declinedAt?: string | null;
+  message?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  invitationLink?: string | null;
+  workspaceIds?: string[] | null;
+}
+
+export interface CreateInvitationRequestDto {
+  email: string;
+  roleId?: string | null;
+  workspaceIds?: string[] | null;
+  message?: string | null;
+}
+
+export interface AcceptInvitationRequestDto {
+  invitationToken: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// Tenant Management Types
+// ============================================================================
+
+export interface TenantDto {
+  tenantId?: string | null;
+  userId: string;
+  name?: string | null;
+  createdAt: string;
+  role?: string | null;
+  joinedAt?: string | null;
+}
+
+export interface SwitchTenantRequestDto {
+  tenantId: string;
+}

@@ -1,125 +1,105 @@
-"use client";
+/**
+ * Permission Gate Component
+ * Conditionally renders children based on workspace permissions
+ * Implements permission checking pattern from integration guide
+ */
 
 import { ReactNode } from "react";
+import { workspacePermissionService } from "@/lib/services/workspace-permission-service";
 import { useWorkspaceStore } from "@/store";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useMemo } from "react";
 
 interface PermissionGateProps {
-  resourceId: string;
-  permission: string | string[];
+  permission: string;
   children: ReactNode;
   fallback?: ReactNode;
-  showTooltip?: boolean;
-  tooltipMessage?: string;
+  workspaceId?: string;
 }
 
 /**
- * PermissionGate component for RBAC enforcement on UI.
+ * Permission Gate - Conditionally renders children based on permission
  *
- * This component checks if the current user has the required permission(s)
- * for a specific resource within the current workspace. If the user lacks
- * the permission, it either hides the children or shows a disabled state
- * with a tooltip explaining why.
- *
- * @example
- * // Hide button if user doesn't have CREATE permission
- * <PermissionGate resourceId="res-002" permission="CREATE">
+ * Usage:
+ * ```tsx
+ * <PermissionGate permission="users:create">
  *   <Button>Create User</Button>
  * </PermissionGate>
- *
- * @example
- * // Show disabled button with tooltip
- * <PermissionGate
- *   resourceId="res-002"
- *   permission="DELETE"
- *   showTooltip
- *   fallback={<Button disabled>Delete</Button>}
- * >
- *   <Button onClick={handleDelete}>Delete</Button>
- * </PermissionGate>
+ * ```
  */
 export function PermissionGate({
-  resourceId,
   permission,
   children,
   fallback = null,
-  showTooltip = false,
-  tooltipMessage,
+  workspaceId,
 }: PermissionGateProps) {
-  const hasPermission = useWorkspaceStore((state) =>
-    Array.isArray(permission)
-      ? state.hasAnyPermission(resourceId, permission)
-      : state.hasPermission(resourceId, permission)
-  );
+  const { currentWorkspaceId } = useWorkspaceStore();
+
+  const targetWorkspaceId = workspaceId || currentWorkspaceId;
+
+  // Check permission using the permission service
+  // Note: This is a synchronous check based on cached permissions
+  // For real-time permission checking, permissions should be loaded first
+  const hasPermission = useMemo(() => {
+    if (!targetWorkspaceId) {
+      return false;
+    }
+
+    return workspacePermissionService.hasPermission(
+      targetWorkspaceId,
+      permission
+    );
+  }, [targetWorkspaceId, permission]);
 
   if (hasPermission) {
     return <>{children}</>;
-  }
-
-  if (!fallback && !showTooltip) {
-    return null;
-  }
-
-  const permissionText = Array.isArray(permission)
-    ? permission.join(" or ")
-    : permission;
-
-  const message =
-    tooltipMessage ||
-    `You need the "${permissionText}" permission to access this feature.`;
-
-  if (showTooltip && fallback) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">{fallback}</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{message}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
   }
 
   return <>{fallback}</>;
 }
 
 /**
- * Hook to check permissions programmatically
+ * Hook to check if user has a specific permission
+ *
+ * Usage:
+ * ```tsx
+ * const hasCreatePermission = usePermission("users:create");
+ * ```
  */
-export function usePermission(
-  resourceId: string,
-  permission: string | string[]
-): boolean {
-  return useWorkspaceStore((state) =>
-    Array.isArray(permission)
-      ? state.hasAnyPermission(resourceId, permission)
-      : state.hasPermission(resourceId, permission)
-  );
+export function usePermission(permission: string, workspaceId?: string) {
+  const { currentWorkspaceId } = useWorkspaceStore();
+  const targetWorkspaceId = workspaceId || currentWorkspaceId;
+
+  return useMemo(() => {
+    if (!targetWorkspaceId) {
+      return false;
+    }
+
+    return workspacePermissionService.hasPermission(
+      targetWorkspaceId,
+      permission
+    );
+  }, [targetWorkspaceId, permission]);
 }
 
 /**
  * Hook to check if user can access a resource
+ *
+ * Usage:
+ * ```tsx
+ * const canAccess = useCanAccessResource("resource-id");
+ * ```
  */
-export function useCanAccessResource(resourceId: string): boolean {
-  return useWorkspaceStore((state) => state.canAccessResource(resourceId));
+export function useCanAccessResource(resourceId: string, workspaceId?: string) {
+  const { currentWorkspaceId, canAccessResource } = useWorkspaceStore();
+  const targetWorkspaceId = workspaceId || currentWorkspaceId;
+
+  return useMemo(() => {
+    if (!targetWorkspaceId) {
+      return false;
+    }
+
+    // Use the workspace store's canAccessResource method
+    return canAccessResource(resourceId);
+  }, [targetWorkspaceId, resourceId, canAccessResource]);
 }
-
-
-
-
-
-
-
-
-
-
-
 

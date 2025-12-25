@@ -70,6 +70,12 @@ import {
 import { useAuthStore, useWorkspaceStore, useUIStore } from "@/store";
 import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
 import { apiGet } from "@/lib/api-client";
+import {
+  getWorkspacesFromToken,
+  getDefaultWorkspaceId,
+  type WorkspaceFromToken,
+} from "@/lib/token-utils";
+import { workspacePermissionService } from "@/lib/services/workspace-permission-service";
 
 interface MenuResource {
   resourceId: string;
@@ -142,22 +148,84 @@ const getIconForResource = (resourceId: string) => getIconForKey(resourceId);
 const getIconForWorkspace = (workspaceKey: string) =>
   getIconForKey(workspaceKey);
 
+// Helper function to remove /api prefix from URLs for navigation
+const normalizeResourceUrl = (url: string | null | undefined): string => {
+  if (!url || url === "#") return "#";
+  // Special case: /api/s should be /workspaces
+  if (url === "/api/s" || url === "/s") {
+    return "/workspaces";
+  }
+  // Remove /api prefix if present
+  if (url.startsWith("/api/")) {
+    return url.replace("/api", "");
+  }
+  return url;
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { workspaces, currentWorkspace, setCurrentWorkspace } =
+  const { workspaces, currentWorkspace, setCurrentWorkspace, setWorkspaces } =
     useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
-  const { setWorkspaces } = useWorkspaceStore();
 
   // Load menu immediately after login - menu endpoint contains workspaces user has access to
+  // Also initialize workspaces from token as per integration guide
   useEffect(() => {
     if (user) {
+      // Try to initialize workspaces from token first (as per integration guide)
+      const { token } = useAuthStore.getState();
+      if (token) {
+        try {
+          const workspacesFromToken = getWorkspacesFromToken(token);
+          if (workspacesFromToken.length > 0) {
+            const defaultWorkspaceId = getDefaultWorkspaceId(token);
+
+            // Convert token workspaces to Workspace format
+            const workspaces: Workspace[] = workspacesFromToken.map((ws) => ({
+              workspaceId: ws.workspaceId,
+              name: ws.workspaceName,
+              description: "",
+              isActive: true,
+              isDeleted: false,
+              color: undefined,
+              createdBy: "",
+              createdAt: "",
+              updatedAt: "",
+            }));
+
+            setWorkspaces(workspaces);
+
+            // Set default workspace and fetch permissions
+            if (defaultWorkspaceId) {
+              const defaultWorkspace =
+                workspaces.find((w) => w.workspaceId === defaultWorkspaceId) ||
+                workspaces[0];
+              if (defaultWorkspace) {
+                setCurrentWorkspace(defaultWorkspace);
+                // Fetch permissions for default workspace
+                workspacePermissionService
+                  .getWorkspacePermissions(defaultWorkspace.workspaceId)
+                  .catch((error) => {
+                    console.error(
+                      "Failed to fetch permissions for default workspace:",
+                      error
+                    );
+                  });
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Failed to initialize workspaces from token:", error);
+        }
+      }
+
+      // Also load menu (this might have more detailed workspace info)
       loadMenu();
     }
   }, [user]);
@@ -202,10 +270,26 @@ export function Sidebar() {
 
   // Only allow one workspace expanded/highlighted at a time to avoid multiple
   // items looking active when the user switches between them.
-  const toggleWorkspace = (workspaceId: string) => {
+  const toggleWorkspace = async (workspaceId: string) => {
+    const wasExpanded = expandedWorkspaces.includes(workspaceId);
     setExpandedWorkspaces((prev) =>
       prev.includes(workspaceId) ? [] : [workspaceId]
     );
+
+    // When workspace is expanded, fetch permissions for that workspace (as per integration guide)
+    if (!wasExpanded) {
+      try {
+        await workspacePermissionService.getWorkspacePermissions(
+          workspaceId,
+          false
+        );
+      } catch (error) {
+        console.error(
+          `Failed to fetch permissions for workspace ${workspaceId}:`,
+          error
+        );
+      }
+    }
   };
 
   const toggleExpand = (id: string) => {
@@ -321,6 +405,14 @@ export function Sidebar() {
 
       {/* Scrollable Navigation */}
       <ScrollArea className="flex-1 px-3 py-4 sidebar-scroll">
+        {/* System Menu Items */}
+        <div className="space-y-1 mb-6">
+          <NavLink
+            item={{ title: "Invitations", href: "/invitations" }}
+            icon={Mail}
+          />
+        </div>
+
         {/* Workspace Label */}
         <div className="px-3 mb-3">
           <span className="text-xs font-semibold text-sidebar-muted-foreground uppercase tracking-wider">
@@ -356,46 +448,87 @@ export function Sidebar() {
 
                 return (
                   <div key={workspaceMenu.workspaceId}>
-                    <button
-                      onClick={() => {
-                        setCurrentWorkspace(workspace);
-                        toggleWorkspace(workspaceMenu.workspaceId);
-                      }}
-                      className={cn(
-                        "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
-                        isWorkspaceActive || isWorkspaceExpanded
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : "text-sidebar-foreground hover:bg-sidebar-muted"
-                      )}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {(() => {
-                          const WorkspaceIcon = getIconForWorkspace(
-                            workspaceMenu.workspaceId ||
-                              workspaceMenu.workspaceName
-                          );
-                          return (
-                            <div
-                              className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
-                              style={{
-                                backgroundColor: `#6366F11A`, // light tint
-                                color: "#6366F1",
-                              }}
-                            >
-                              <WorkspaceIcon className="h-4 w-4" />
-                            </div>
-                          );
-                        })()}
-                        <span className="text-left truncate">
-                          {workspaceMenu.workspaceName}
-                        </span>
-                      </div>
-                      {isWorkspaceExpanded ? (
-                        <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 flex-shrink-0 ml-2" />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={async () => {
+                          setCurrentWorkspace(workspace);
+                          await toggleWorkspace(workspaceMenu.workspaceId);
+
+                          // Fetch permissions when workspace is selected (as per integration guide)
+                          try {
+                            await workspacePermissionService.getWorkspacePermissions(
+                              workspaceMenu.workspaceId,
+                              false
+                            );
+                            // Emit workspace changed event for other components
+                            if (typeof window !== "undefined") {
+                              window.dispatchEvent(
+                                new CustomEvent("workspaceChanged", {
+                                  detail: {
+                                    workspaceId: workspaceMenu.workspaceId,
+                                    workspace,
+                                  },
+                                })
+                              );
+                            }
+                          } catch (error) {
+                            console.error(
+                              `Failed to fetch permissions for workspace ${workspaceMenu.workspaceId}:`,
+                              error
+                            );
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center justify-between flex-1 px-3 py-2.5 text-sm rounded-lg transition-colors",
+                          isWorkspaceActive || isWorkspaceExpanded
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            : "text-sidebar-foreground hover:bg-sidebar-muted"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {(() => {
+                            const WorkspaceIcon = getIconForWorkspace(
+                              workspaceMenu.workspaceId ||
+                                workspaceMenu.workspaceName
+                            );
+                            return (
+                              <div
+                                className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
+                                style={{
+                                  backgroundColor: `#6366F11A`, // light tint
+                                  color: "#6366F1",
+                                }}
+                              >
+                                <WorkspaceIcon className="h-4 w-4" />
+                              </div>
+                            );
+                          })()}
+                          <span className="text-left truncate">
+                            {workspaceMenu.workspaceName}
+                          </span>
+                        </div>
+                        {isWorkspaceExpanded ? (
+                          <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 flex-shrink-0 ml-2" />
+                        )}
+                      </button>
+                      <Link
+                        href={`/workspaces/${workspaceMenu.workspaceId}`}
+                        onClick={() => {
+                          setCurrentWorkspace(workspace);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={cn(
+                          "px-2 py-2.5 text-xs rounded-lg transition-colors",
+                          "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted",
+                          "flex items-center justify-center"
+                        )}
+                        title="Manage workspace"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Link>
+                    </div>
                     {isWorkspaceExpanded && workspaceResources.length > 0 && (
                       <div className="mt-1 space-y-1 ml-2">
                         {workspaceResources.map((resource) => {
@@ -458,7 +591,7 @@ export function Sidebar() {
                                             key={child.resourceId}
                                             item={{
                                               title: child.name,
-                                              href: child.url || "#",
+                                              href: normalizeResourceUrl(child.url),
                                             }}
                                             isChild
                                             icon={ChildIcon}
@@ -477,7 +610,7 @@ export function Sidebar() {
                                     <NavLink
                                       item={{
                                         title: resource.name,
-                                        href: resource.url || "#",
+                                        href: normalizeResourceUrl(resource.url),
                                       }}
                                       isChild
                                       icon={ResourceIcon}

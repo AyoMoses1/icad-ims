@@ -133,6 +133,8 @@ export default function WorkspaceDetailPage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>(
     []
   );
+  const [isLoadingRolePermissions, setIsLoadingRolePermissions] =
+    useState(false);
 
   useEffect(() => {
     if (workspaceId) {
@@ -291,8 +293,38 @@ export default function WorkspaceDetailPage() {
             // Get user details - either from item or from allUsers lookup
             let userData: User | undefined = undefined;
 
-            // If user data is already in the response (flattened structure)
-            if (
+            // Handle new API response structure with userFullName, userEmail, userName
+            if (item.userFullName || item.userEmail || item.userName) {
+              // Parse fullName to firstName and lastName if needed
+              const fullName = item.userFullName || "";
+              const nameParts = fullName.trim().split(/\s+/);
+              const firstName = item.firstName || nameParts[0] || "";
+              const lastName = item.lastName || nameParts.slice(1).join(" ") || "";
+
+              userData = {
+                id: item.userId || item.id || "",
+                username: item.userName || item.username || "",
+                email: item.userEmail || item.email || "",
+                phoneNumber: item.phoneNumber || "",
+                firstName: firstName,
+                middleName: item.middleName,
+                lastName: lastName,
+                dateOfBirth: item.dateOfBirth,
+                country: item.country || "",
+                status:
+                  typeof item.status === "string"
+                    ? (item.status as UserStatus)
+                    : UserStatus.ACTIVE,
+                emailVerified: item.emailVerified || false,
+                phoneVerified: item.phoneVerified || false,
+                twoFactorEnabled: item.twoFactorEnabled || false,
+                createdAt: item.createdAt || "",
+                updatedAt: item.updatedAt || "",
+                avatarUrl: item.avatarUrl,
+              };
+            }
+            // If user data is already in the response (flattened structure with old field names)
+            else if (
               item.email ||
               item.firstName ||
               (item.id && !item.workspaceMemberId)
@@ -625,6 +657,65 @@ export default function WorkspaceDetailPage() {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const loadRolePermissions = async (
+    roleId: string,
+    resourceId: string
+  ): Promise<string[]> => {
+    try {
+      // Fetch existing permissions for this role and resource
+      const result = await apiGet<any>(
+        `/api/workspaces/${workspaceId}/roles/${roleId}/permissions?resourceId=${resourceId}`
+      );
+
+      if (result.success && result.data) {
+        // Handle different response structures
+        const data = result.data;
+
+        // Case 1: Direct permissionIds array in data
+        if (data.permissionIds && Array.isArray(data.permissionIds)) {
+          console.log("Found permissionIds array:", data.permissionIds);
+          return data.permissionIds.filter((id: unknown): id is string => typeof id === "string");
+        }
+
+        // Case 2: Permissions array with permissionId field
+        if (data.permissions && Array.isArray(data.permissions)) {
+          const ids = data.permissions
+            .map((p: any) => p.permissionId || p.id)
+            .filter((id: unknown): id is string => typeof id === "string" && !!id);
+          console.log("Found permissions array, extracted IDs:", ids);
+          return ids;
+        }
+
+        // Case 3: Data is directly an array of permission IDs
+        if (Array.isArray(data)) {
+          const ids = data.filter((id: unknown): id is string => typeof id === "string" && !!id);
+          console.log("Data is array of IDs:", ids);
+          return ids;
+        }
+
+        // Case 4: Data has nested structure with items array
+        if (data.items && Array.isArray(data.items)) {
+          const ids = data.items
+            .map((item: any) => item.permissionId || item.id || item)
+            .filter((id: unknown): id is string => typeof id === "string" && !!id);
+          console.log("Found items array, extracted IDs:", ids);
+          return ids;
+        }
+
+        console.warn("Unexpected response structure for role permissions:", data);
+      }
+      
+      return [];
+    } catch (error) {
+      console.error(
+        "Failed to fetch existing permissions for role:",
+        error
+      );
+      // Return empty array on error so UI still works
+      return [];
     }
   };
 
@@ -981,10 +1072,33 @@ export default function WorkspaceDetailPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
+                          onClick={async () => {
                             setSelectedRole(role);
-                            setSelectedResource(resources[0] || null);
+                            const defaultResource = resources[0] || null;
+                            setSelectedResource(defaultResource);
                             setIsAssignPermissionsOpen(true);
+                            // Load existing permissions for this role and resource
+                            if (defaultResource) {
+                              setIsLoadingRolePermissions(true);
+                              try {
+                                const existingPermissionIds =
+                                  await loadRolePermissions(
+                                    role.workspaceRoleId,
+                                    defaultResource.resourceId
+                                  );
+                                setSelectedPermissionIds(existingPermissionIds);
+                              } catch (error) {
+                                console.error(
+                                  "Failed to load existing permissions:",
+                                  error
+                                );
+                                setSelectedPermissionIds([]);
+                              } finally {
+                                setIsLoadingRolePermissions(false);
+                              }
+                            } else {
+                              setSelectedPermissionIds([]);
+                            }
                           }}
                         >
                           <Key className="mr-2 h-4 w-4" />
@@ -1042,10 +1156,11 @@ export default function WorkspaceDetailPage() {
                 ) : (
                   filteredMembers.map((member) => {
                     const user = member.user;
+                    // Build display name from firstName/lastName or use email as fallback
                     const displayName = user
-                      ? `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-                        user.email ||
-                        "Unknown User"
+                      ? (user.firstName || user.lastName
+                          ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                          : user.email) || "Unknown User"
                       : member.type === "OWNER"
                         ? "Workspace Owner"
                         : "Unknown Member";
@@ -1062,9 +1177,9 @@ export default function WorkspaceDetailPage() {
                             <AvatarFallback>
                               {user
                                 ? getInitials(
-                                    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-                                      user.email ||
-                                      "U"
+                                    (user.firstName || user.lastName
+                                      ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                                      : user.email) || "U"
                                   )
                                 : member.type === "OWNER"
                                   ? "WO"
@@ -1073,16 +1188,9 @@ export default function WorkspaceDetailPage() {
                           </Avatar>
                           <div>
                             <p className="font-medium">{displayName}</p>
-                            {displayEmail && (
-                              <p className="text-sm text-muted-foreground">
-                                {displayEmail}
-                              </p>
-                            )}
-                            {!user && (
-                              <p className="text-xs text-muted-foreground">
-                                User ID: {member.user?.id || "N/A"}
-                              </p>
-                            )}
+                            <p className="text-sm text-muted-foreground">
+                              {displayEmail || "No email"}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1466,11 +1574,32 @@ export default function WorkspaceDetailPage() {
               <Label>Resource</Label>
               <Select
                 value={selectedResource?.resourceId || ""}
-                onValueChange={(value) => {
+                onValueChange={async (value) => {
                   const resource = resources.find(
                     (r) => r.resourceId === value
                   );
                   setSelectedResource(resource || null);
+                  // Load existing permissions when resource changes
+                  if (resource && selectedRole) {
+                    setIsLoadingRolePermissions(true);
+                    try {
+                      const existingPermissionIds = await loadRolePermissions(
+                        selectedRole.workspaceRoleId,
+                        resource.resourceId
+                      );
+                      setSelectedPermissionIds(existingPermissionIds);
+                    } catch (error) {
+                      console.error(
+                        "Failed to load existing permissions:",
+                        error
+                      );
+                      setSelectedPermissionIds([]);
+                    } finally {
+                      setIsLoadingRolePermissions(false);
+                    }
+                  } else {
+                    setSelectedPermissionIds([]);
+                  }
                 }}
               >
                 <SelectTrigger>
@@ -1491,7 +1620,11 @@ export default function WorkspaceDetailPage() {
             <div className="space-y-2">
               <Label>Permissions</Label>
               <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
-                {allPermissions.length === 0 ? (
+                {isLoadingRolePermissions ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Loading existing permissions...
+                  </p>
+                ) : allPermissions.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     Loading permissions...
                   </p>
@@ -1552,8 +1685,15 @@ export default function WorkspaceDetailPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleAssignPermissions} disabled={isSubmitting}>
-              {isSubmitting ? "Assigning..." : "Assign Permissions"}
+            <Button
+              onClick={handleAssignPermissions}
+              disabled={isSubmitting || isLoadingRolePermissions}
+            >
+              {isSubmitting
+                ? "Assigning..."
+                : isLoadingRolePermissions
+                  ? "Loading..."
+                  : "Assign Permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>

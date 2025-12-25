@@ -61,6 +61,109 @@ function getAuthToken(): string | null {
 }
 
 /**
+ * Gets refresh token from auth store
+ */
+function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const { useAuthStore } = require("@/store");
+    return useAuthStore.getState().refreshToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks if token is expired based on expiration time
+ */
+function isTokenExpired(): boolean {
+  if (typeof window === "undefined") return true;
+
+  try {
+    const { useAuthStore } = require("@/store");
+    const { expiresAt } = useAuthStore.getState();
+
+    if (!expiresAt) return true;
+
+    return new Date(expiresAt) <= new Date();
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Refreshes the access token using refresh token
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+
+  if (!refreshToken) {
+    console.warn("No refresh token available");
+    return null;
+  }
+
+  try {
+    const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+    const clientSecret = process.env.NEXT_PUBLIC_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.error("OAuth credentials not configured");
+      return null;
+    }
+
+    // Call refresh token endpoint
+    const tokenResponse = await apiPostForm<{
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+    }>("/connect/token", {
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    });
+
+    // Update token in auth store
+    const { useAuthStore } = require("@/store");
+    const expiresIn = tokenResponse.expires_in || 86400; // Default 24 hours
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser) {
+      useAuthStore.getState().setSession({
+        user: currentUser,
+        token: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token || refreshToken,
+        expiresAt,
+      });
+    }
+
+    return tokenResponse.access_token;
+  } catch (error) {
+    console.error("Failed to refresh token:", error);
+    // Refresh failed - clear session and redirect to login
+    if (typeof window !== "undefined") {
+      const { useAuthStore } = require("@/store");
+      useAuthStore.getState().logout();
+      window.location.href = "/auth/signin";
+    }
+    return null;
+  }
+}
+
+/**
+ * Gets a valid token, refreshing if necessary
+ */
+async function getValidToken(): Promise<string | null> {
+  if (isTokenExpired()) {
+    return await refreshAccessToken();
+  }
+
+  return getAuthToken();
+}
+
+/**
  * Makes an API request to the backend
  */
 export async function apiClient<T>(
@@ -94,8 +197,8 @@ export async function apiClient<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  // Add authorization token if available
-  const token = getAuthToken();
+  // Get valid token (will refresh if expired)
+  const token = await getValidToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -108,8 +211,43 @@ export async function apiClient<T>(
 
     const data: ApiResponse<T> = await response.json();
 
+    // Handle 401 - token expired/invalid, try refresh and retry
+    if (response.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        // Retry request with new token
+        const retryHeaders: Record<string, string> = {
+          ...headers,
+          Authorization: `Bearer ${newToken}`,
+        };
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: retryHeaders,
+        });
+        const retryData: ApiResponse<T> = await retryResponse.json();
+        if (!retryResponse.ok) {
+          // Handle 403 - Forbidden (no permission)
+          if (retryResponse.status === 403) {
+            throw new Error(
+              retryData.error?.message || retryData.message || "Access denied"
+            );
+          }
+          throw new Error(
+            retryData.error?.message || retryData.message || "Request failed"
+          );
+        }
+        return retryData;
+      }
+      // Refresh failed - redirect will happen in refreshAccessToken
+      throw new Error("Authentication failed. Please login again.");
+    }
+
     // Handle non-2xx responses
     if (!response.ok) {
+      // Handle 403 - Forbidden (no permission)
+      if (response.status === 403) {
+        throw new Error(data.error?.message || data.message || "Access denied");
+      }
       throw new Error(data.error?.message || data.message || "Request failed");
     }
 
@@ -158,6 +296,19 @@ export async function apiPut<T>(
 ): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, {
     method: "PUT",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/**
+ * PATCH request helper
+ */
+export async function apiPatch<T>(
+  endpoint: string,
+  body?: unknown
+): Promise<ApiResponse<T>> {
+  return apiClient<T>(endpoint, {
+    method: "PATCH",
     body: body ? JSON.stringify(body) : undefined,
   });
 }
@@ -240,7 +391,9 @@ export async function apiGetAuth<T>(endpoint: string): Promise<T> {
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = getAuthToken();
+
+  // Get valid token (will refresh if expired)
+  const token = await getValidToken();
 
   if (!token) {
     throw new Error("Authentication required");
@@ -254,6 +407,31 @@ export async function apiGetAuth<T>(endpoint: string): Promise<T> {
         Authorization: `Bearer ${token}`,
       },
     });
+
+    // Handle 401 - try refresh and retry
+    if (response.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        const retryResponse = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${newToken}`,
+          },
+        });
+        if (!retryResponse.ok) {
+          const errorData = await retryResponse.json().catch(() => ({
+            error: "Request failed",
+          }));
+          throw new Error(
+            errorData.error_description || errorData.error || "Request failed"
+          );
+        }
+        const retryData: T = await retryResponse.json();
+        return retryData;
+      }
+      throw new Error("Authentication failed. Please login again.");
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({
@@ -293,7 +471,9 @@ export async function apiPostAuth<T>(
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = getAuthToken();
+
+  // Get valid token (will refresh if expired)
+  const token = await getValidToken();
 
   if (!token) {
     throw new Error("Authentication required");
@@ -308,6 +488,32 @@ export async function apiPostAuth<T>(
       },
       body: body ? JSON.stringify(body) : undefined,
     });
+
+    // Handle 401 - try refresh and retry
+    if (response.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        const retryResponse = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${newToken}`,
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        if (!retryResponse.ok) {
+          const errorData = await retryResponse.json().catch(() => ({
+            error: "Request failed",
+          }));
+          throw new Error(
+            errorData.error_description || errorData.error || "Request failed"
+          );
+        }
+        const retryData: T = await retryResponse.json();
+        return retryData;
+      }
+      throw new Error("Authentication failed. Please login again.");
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAuthStore } from "@/store";
+import { useAuthStore, useWorkspaceStore } from "@/store";
 import { apiPostForm, apiGetAuth } from "@/lib/api-client";
 import { TokenResponse, UserInfo, User, UserStatus } from "@/types";
 
@@ -28,6 +28,7 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function SignInPage() {
   const router = useRouter();
   const { setSession } = useAuthStore();
+  const { initializeFromToken } = useWorkspaceStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
