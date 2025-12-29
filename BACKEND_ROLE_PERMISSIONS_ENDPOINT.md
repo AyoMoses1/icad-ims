@@ -92,3 +92,4 @@ When a user clicks "Assign Permissions" on a role in the workspace management UI
 - **POST** `/api/workspaces/{workspaceId}/roles/{roleId}/permissions` - Already exists, used to assign/update permissions
 - The GET endpoint should return the same data structure that would be sent to the POST endpoint (for consistency)
 
+

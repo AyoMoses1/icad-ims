@@ -103,3 +103,4 @@ export function useCanAccessResource(resourceId: string, workspaceId?: string) {
   }, [targetWorkspaceId, resourceId, canAccessResource]);
 }
 
+
