@@ -514,7 +514,11 @@ export default function InvitationsPage() {
       id: "expiresAt",
       header: "Expires",
       cell: (invitation) => (
-        <span className="text-sm">{formatDate(invitation.expiresAt)}</span>
+        <span className="text-sm">
+          {invitation.expiresAt
+            ? formatDate(invitation.expiresAt)
+            : "N/A"}
+        </span>
       ),
       sortable: true,
     },

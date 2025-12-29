@@ -918,13 +918,17 @@ export default function WorkspaceDetailPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Created</p>
                   <p className="font-medium">
-                    {formatDate(workspace.createdAt)}
+                    {workspace.createdAt
+                      ? formatDate(workspace.createdAt)
+                      : "N/A"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Last Updated</p>
                   <p className="font-medium">
-                    {formatDate(workspace.updatedAt)}
+                    {workspace.updatedAt
+                      ? formatDate(workspace.updatedAt)
+                      : "N/A"}
                   </p>
                 </div>
                 <div>

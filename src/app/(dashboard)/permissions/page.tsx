@@ -372,7 +372,8 @@ export default function PermissionsPage() {
     {
       id: "createdAt",
       header: "Created",
-      cell: (permission) => formatDate(permission.createdAt),
+      cell: (permission) =>
+        permission.createdAt ? formatDate(permission.createdAt) : "N/A",
       sortable: true,
     },
     {
