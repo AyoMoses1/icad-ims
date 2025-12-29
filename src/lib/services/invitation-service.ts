@@ -15,7 +15,7 @@ import type {
   PaginatedResponse,
 } from "@/types";
 
-const API_BASE = "/api/invitations";
+const API_BASE = "/iam/api/v1/invitations";
 
 /**
  * Get paginated list of invitations
