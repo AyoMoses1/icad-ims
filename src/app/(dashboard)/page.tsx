@@ -12,6 +12,7 @@ import {
   Activity,
   Shield,
   Building2,
+  ExternalLink,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +76,7 @@ interface RecentActivity {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const { workspaces } = useWorkspaceStore();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -111,8 +112,79 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  const handleWorkspaceClick = (workspaceId: string) => {
+    if (token) {
+      window.location.href = `http://localhost:3002/dashboard?token=${encodeURIComponent(token)}`;
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Workspaces Section */}
+      {workspaces && workspaces.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">My Workspaces</h2>
+              <p className="text-muted-foreground">
+                Select a workspace to access its dashboard
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {isLoading ? (
+              [1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardContent className="p-6">
+                    <Skeleton className="h-12 w-12 rounded-lg mb-4" />
+                    <Skeleton className="h-5 w-32 mb-2" />
+                    <Skeleton className="h-4 w-full mb-4" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              workspaces.map((workspace) => (
+                <Card
+                  key={workspace.workspaceId}
+                  className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
+                  onClick={() => handleWorkspaceClick(workspace.workspaceId)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div
+                        className="h-12 w-12 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
+                        style={{ backgroundColor: workspace.color || "#3EADC0" }}
+                      >
+                        <Building2 className="h-6 w-6 text-white" />
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">
+                      {workspace.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                      {workspace.description || "No description available"}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <Badge
+                        variant={workspace.isActive ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {workspace.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Activity className="h-3 w-3" />
+                        Click to open
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
