@@ -113,7 +113,9 @@ export default function InvitationsPage() {
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false);
-  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([]);
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>(
+    []
+  );
 
   // Tab state - "received" or "sent"
   const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
@@ -296,9 +298,10 @@ export default function InvitationsPage() {
       // Include selected workspace IDs in the request
       const invitationData: CreateInvitationRequestDto = {
         ...formData,
-        workspaceIds: selectedWorkspaceIds.length > 0 ? selectedWorkspaceIds : null,
+        workspaceIds:
+          selectedWorkspaceIds.length > 0 ? selectedWorkspaceIds : null,
       };
-      
+
       const result = await createInvitation(invitationData);
 
       if (result.success && result.data) {
@@ -443,176 +446,194 @@ export default function InvitationsPage() {
     );
   };
 
-  const columns: DataTableColumn<InvitationDto>[] = useMemo(() => [
-    {
-      id: "email",
-      header: "Email",
-      cell: (invitation) => (
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-            <Mail className="h-5 w-5 text-blue-600" />
+  const columns: DataTableColumn<InvitationDto>[] = useMemo(
+    () => [
+      {
+        id: "email",
+        header: "Email",
+        cell: (invitation) => (
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+              <Mail className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="font-medium">{invitation.email}</p>
+              {invitation.tenantName && (
+                <p className="text-sm text-muted-foreground">
+                  {invitation.tenantName}
+                </p>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="font-medium">{invitation.email}</p>
-            {invitation.tenantName && (
-              <p className="text-sm text-muted-foreground">
-                {invitation.tenantName}
-              </p>
-            )}
-          </div>
-        </div>
-      ),
-      sortable: true,
-    },
-    {
-      id: "role",
-      header: "Role",
-      cell: (invitation) => (
-        <span className="text-sm">{invitation.roleName || "Default Role"}</span>
-      ),
-    },
-    {
-      id: "workspaces",
-      header: "Workspaces",
-      cell: (invitation) => {
-        if (!invitation.workspaceIds || invitation.workspaceIds.length === 0) {
-          return <span className="text-sm text-muted-foreground">All workspaces</span>;
-        }
-        // Find workspace names by IDs
-        const workspaceNames = invitation.workspaceIds
-          .map((id) => {
-            const workspace = workspaces.find((w) => w.workspaceId === id);
-            return workspace?.name || id.substring(0, 8) + "...";
-          })
-          .join(", ");
-        
-        return (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">
-              {invitation.workspaceIds.length} workspace{invitation.workspaceIds.length !== 1 ? "s" : ""}
-            </span>
-            <span className="text-xs text-muted-foreground truncate max-w-[300px]" title={workspaceNames}>
-              {workspaceNames}
-            </span>
-          </div>
-        );
+        ),
+        sortable: true,
       },
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: (invitation) => getStatusBadge(invitation.status),
-    },
-    {
-      id: "invitedBy",
-      header: "Invited By",
-      cell: (invitation) => (
-        <span className="text-sm">{invitation.invitedByName || "N/A"}</span>
-      ),
-    },
-    {
-      id: "expiresAt",
-      header: "Expires",
-      cell: (invitation) => (
-        <span className="text-sm">
-          {invitation.expiresAt
-            ? formatDate(invitation.expiresAt)
-            : "N/A"}
-        </span>
-      ),
-      sortable: true,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: (invitation) => {
-        // Show different actions based on tab
-        if (activeTab === "received") {
-          // Received invitations: Accept/Decline
+      {
+        id: "role",
+        header: "Role",
+        cell: (invitation) => (
+          <span className="text-sm">
+            {invitation.roleName || "Default Role"}
+          </span>
+        ),
+      },
+      {
+        id: "workspaces",
+        header: "Workspaces",
+        cell: (invitation) => {
+          if (
+            !invitation.workspaceIds ||
+            invitation.workspaceIds.length === 0
+          ) {
+            return (
+              <span className="text-sm text-muted-foreground">
+                All workspaces
+              </span>
+            );
+          }
+          // Find workspace names by IDs
+          const workspaceNames = invitation.workspaceIds
+            .map((id) => {
+              const workspace = workspaces.find((w) => w.workspaceId === id);
+              return workspace?.name || id.substring(0, 8) + "...";
+            })
+            .join(", ");
+
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {invitation.status === InvitationStatus.Pending && (
-                  <>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">
+                {invitation.workspaceIds.length} workspace
+                {invitation.workspaceIds.length !== 1 ? "s" : ""}
+              </span>
+              <span
+                className="text-xs text-muted-foreground truncate max-w-[300px]"
+                title={workspaceNames}
+              >
+                {workspaceNames}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: (invitation) => getStatusBadge(invitation.status),
+      },
+      {
+        id: "invitedBy",
+        header: "Invited By",
+        cell: (invitation) => (
+          <span className="text-sm">{invitation.invitedByName || "N/A"}</span>
+        ),
+      },
+      {
+        id: "expiresAt",
+        header: "Expires",
+        cell: (invitation) => (
+          <span className="text-sm">
+            {invitation.expiresAt ? formatDate(invitation.expiresAt) : "N/A"}
+          </span>
+        ),
+        sortable: true,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: (invitation) => {
+          // Show different actions based on tab
+          if (activeTab === "received") {
+            // Received invitations: Accept/Decline
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {invitation.status === InvitationStatus.Pending && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedInvitation(invitation);
+                          setIsAcceptOpen(true);
+                        }}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Accept
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedInvitation(invitation);
+                          setIsDeclineOpen(true);
+                        }}
+                        className="text-destructive"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Decline
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {invitation.invitationLink && (
                     <DropdownMenuItem
                       onClick={() => {
-                        setSelectedInvitation(invitation);
-                        setIsAcceptOpen(true);
+                        navigator.clipboard.writeText(
+                          invitation.invitationLink!
+                        );
+                        toast.success("Invitation link copied to clipboard");
                       }}
                     >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Accept
+                      <Mail className="mr-2 h-4 w-4" />
+                      Copy Link
                     </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          } else {
+            // Sent invitations: Delete
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedInvitation(invitation);
+                      setIsDeleteOpen(true);
+                    }}
+                    className="text-destructive"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                  {invitation.invitationLink && (
                     <DropdownMenuItem
                       onClick={() => {
-                        setSelectedInvitation(invitation);
-                        setIsDeclineOpen(true);
+                        navigator.clipboard.writeText(
+                          invitation.invitationLink!
+                        );
+                        toast.success("Invitation link copied to clipboard");
                       }}
-                      className="text-destructive"
                     >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Decline
+                      <Mail className="mr-2 h-4 w-4" />
+                      Copy Link
                     </DropdownMenuItem>
-                  </>
-                )}
-                {invitation.invitationLink && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      navigator.clipboard.writeText(invitation.invitationLink!);
-                      toast.success("Invitation link copied to clipboard");
-                    }}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Copy Link
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        } else {
-          // Sent invitations: Delete
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSelectedInvitation(invitation);
-                    setIsDeleteOpen(true);
-                  }}
-                  className="text-destructive"
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-                {invitation.invitationLink && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      navigator.clipboard.writeText(invitation.invitationLink!);
-                      toast.success("Invitation link copied to clipboard");
-                    }}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Copy Link
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        }
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          }
+        },
+        className: "w-12",
       },
-      className: "w-12",
-    },
-  ], [workspaces]);
+    ],
+    [workspaces]
+  );
 
   return (
     <div className="space-y-6">
@@ -801,7 +822,8 @@ export default function InvitationsPage() {
             <div className="space-y-2">
               <Label htmlFor="workspaces">Workspaces (Optional)</Label>
               <p className="text-sm text-muted-foreground">
-                Select workspaces to grant access to. If none selected, user will have access to all workspaces.
+                Select workspaces to grant access to. If none selected, user
+                will have access to all workspaces.
               </p>
               {isLoadingWorkspaces ? (
                 <LoadingSpinner size="sm" />
@@ -820,7 +842,9 @@ export default function InvitationsPage() {
                         >
                           <Checkbox
                             id={`workspace-${workspace.workspaceId}`}
-                            checked={selectedWorkspaceIds.includes(workspace.workspaceId)}
+                            checked={selectedWorkspaceIds.includes(
+                              workspace.workspaceId
+                            )}
                             onCheckedChange={() =>
                               handleWorkspaceToggle(workspace.workspaceId)
                             }
@@ -846,7 +870,8 @@ export default function InvitationsPage() {
               )}
               {selectedWorkspaceIds.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {selectedWorkspaceIds.length} workspace{selectedWorkspaceIds.length !== 1 ? "s" : ""} selected
+                  {selectedWorkspaceIds.length} workspace
+                  {selectedWorkspaceIds.length !== 1 ? "s" : ""} selected
                 </p>
               )}
             </div>
@@ -952,5 +977,3 @@ export default function InvitationsPage() {
     </div>
   );
 }
-
-

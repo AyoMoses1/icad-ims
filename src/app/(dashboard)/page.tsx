@@ -18,10 +18,34 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleWorkspaceClick = (workspaceId: string) => {
-    if (token) {
-      window.location.href = `http://localhost:3002/dashboard?token=${encodeURIComponent(token)}`;
+  /**
+   * Gets application URL for workspace
+   * For now, all workspaces redirect to localhost:3001
+   * TODO: When backend adds URL field to workspace, use: workspace.url || defaultUrl
+   */
+  const getApplicationUrl = (workspace: (typeof workspaces)[0]): string => {
+    if (!token) {
+      return `/workspaces/${workspace.workspaceId}`;
     }
+
+    // TODO: When backend adds URL field to workspace, use:
+    // const workspaceUrl = (workspace as any).url || (workspace as any).applicationUrl;
+    // return workspaceUrl ? `${workspaceUrl}?token=${encodeURIComponent(token)}` : defaultUrl;
+
+    // For now, default all workspaces to localhost:3001
+    const defaultApplicationUrl = "http://localhost:3001";
+    return `${defaultApplicationUrl}?token=${encodeURIComponent(token)}`;
+  };
+
+  const handleWorkspaceClick = (workspace: (typeof workspaces)[0]) => {
+    if (!token) {
+      return;
+    }
+
+    const url = getApplicationUrl(workspace);
+
+    // Navigate to the application URL
+    window.location.href = url;
   };
 
   return (
@@ -52,7 +76,7 @@ export default function DashboardPage() {
               <Card
                 key={workspace.workspaceId}
                 className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
-                onClick={() => handleWorkspaceClick(workspace.workspaceId)}
+                onClick={() => handleWorkspaceClick(workspace)}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -99,17 +123,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

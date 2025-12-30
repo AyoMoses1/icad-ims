@@ -186,8 +186,8 @@ export function Sidebar() {
           if (workspacesFromToken.length > 0) {
             const defaultWorkspaceId = getDefaultWorkspaceId(token);
 
-            // Convert token workspaces to Workspace format
-            const workspaces: Workspace[] = workspacesFromToken.map((ws) => ({
+            // Convert token workspaces to Workspace format, preserving workspaceCode
+            const workspaces: (Workspace & { workspaceCode?: string })[] = workspacesFromToken.map((ws) => ({
               workspaceId: ws.workspaceId,
               name: ws.workspaceName,
               description: "",
@@ -197,6 +197,7 @@ export function Sidebar() {
               createdBy: "",
               createdAt: "",
               updatedAt: "",
+              workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
             }));
 
             setWorkspaces(workspaces);

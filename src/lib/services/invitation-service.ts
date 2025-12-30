@@ -87,13 +87,13 @@ export async function createInvitation(
 /**
  * Accept an invitation
  */
-export async function acceptInvitation(
-  invitationId: string,
-  workspaceId?: string
-): Promise<ApiResponse<InvitationDto>> {
+export async function acceptInvitation(data: {
+  invitationToken: string;
+  workspaceId?: string;
+}): Promise<ApiResponse<InvitationDto>> {
   const response = await apiPut<InvitationDto>(`${API_BASE}/accept`, {
-    invitationId,
-    workspaceId,
+    invitationToken: data.invitationToken,
+    ...(data.workspaceId && { workspaceId: data.workspaceId }),
   });
 
   return response;

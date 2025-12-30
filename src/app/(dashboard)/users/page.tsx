@@ -263,8 +263,7 @@ export default function UsersPage() {
       id: "createdAt",
       header: "Joined",
       accessorKey: "createdAt",
-      cell: (user) =>
-        user.createdAt ? formatDate(user.createdAt) : "N/A",
+      cell: (user) => (user.createdAt ? formatDate(user.createdAt) : "N/A"),
       sortable: true,
     },
     {
@@ -505,5 +504,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-

@@ -636,5 +636,3 @@ export default function PermissionsPage() {
     </div>
   );
 }
-
-

@@ -238,15 +238,11 @@ export default function WorkspaceDetailPage() {
           : rolesResult.data.items || [];
 
         // Transform roles to match expected structure
-        // API may return roleDescription instead of name
+        // Backend returns roleName and roleDescription
         const rolesData: WorkspaceRole[] = rawRolesData.map((role: any) => ({
           ...role,
-          name:
-            role.name ||
-            role.roleDescription ||
-            role.roleName ||
-            "Unnamed Role",
-          description: role.description || role.roleDescription || "",
+          name: role.roleName || role.name || "Unnamed Role",
+          description: role.roleDescription || role.description || "",
         }));
 
         if (process.env.NODE_ENV === "development") {
@@ -299,7 +295,8 @@ export default function WorkspaceDetailPage() {
               const fullName = item.userFullName || "";
               const nameParts = fullName.trim().split(/\s+/);
               const firstName = item.firstName || nameParts[0] || "";
-              const lastName = item.lastName || nameParts.slice(1).join(" ") || "";
+              const lastName =
+                item.lastName || nameParts.slice(1).join(" ") || "";
 
               userData = {
                 id: item.userId || item.id || "",
@@ -637,7 +634,7 @@ export default function WorkspaceDetailPage() {
       const result = await apiPost<WorkspaceRole>(
         `/api/workspaces/${workspaceId}/roles`,
         {
-          name: roleForm.name,
+          roleName: roleForm.name,
           roleDescription: roleForm.description,
           isActive: roleForm.isActive,
         }
@@ -677,21 +674,27 @@ export default function WorkspaceDetailPage() {
         // Case 1: Direct permissionIds array in data
         if (data.permissionIds && Array.isArray(data.permissionIds)) {
           console.log("Found permissionIds array:", data.permissionIds);
-          return data.permissionIds.filter((id: unknown): id is string => typeof id === "string");
+          return data.permissionIds.filter(
+            (id: unknown): id is string => typeof id === "string"
+          );
         }
 
         // Case 2: Permissions array with permissionId field
         if (data.permissions && Array.isArray(data.permissions)) {
           const ids = data.permissions
             .map((p: any) => p.permissionId || p.id)
-            .filter((id: unknown): id is string => typeof id === "string" && !!id);
+            .filter(
+              (id: unknown): id is string => typeof id === "string" && !!id
+            );
           console.log("Found permissions array, extracted IDs:", ids);
           return ids;
         }
 
         // Case 3: Data is directly an array of permission IDs
         if (Array.isArray(data)) {
-          const ids = data.filter((id: unknown): id is string => typeof id === "string" && !!id);
+          const ids = data.filter(
+            (id: unknown): id is string => typeof id === "string" && !!id
+          );
           console.log("Data is array of IDs:", ids);
           return ids;
         }
@@ -700,20 +703,22 @@ export default function WorkspaceDetailPage() {
         if (data.items && Array.isArray(data.items)) {
           const ids = data.items
             .map((item: any) => item.permissionId || item.id || item)
-            .filter((id: unknown): id is string => typeof id === "string" && !!id);
+            .filter(
+              (id: unknown): id is string => typeof id === "string" && !!id
+            );
           console.log("Found items array, extracted IDs:", ids);
           return ids;
         }
 
-        console.warn("Unexpected response structure for role permissions:", data);
+        console.warn(
+          "Unexpected response structure for role permissions:",
+          data
+        );
       }
-      
+
       return [];
     } catch (error) {
-      console.error(
-        "Failed to fetch existing permissions for role:",
-        error
-      );
+      console.error("Failed to fetch existing permissions for role:", error);
       // Return empty array on error so UI still works
       return [];
     }
@@ -1060,7 +1065,7 @@ export default function WorkspaceDetailPage() {
                         </div>
                         <div>
                           <p className="font-medium flex items-center gap-2">
-                            {role.name}
+                            {role.name || role.roleName || "Unnamed Role"}
                             {role.isSystemRole && (
                               <Badge variant="outline" className="text-xs">
                                 System
@@ -1068,7 +1073,9 @@ export default function WorkspaceDetailPage() {
                             )}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {role.description || "No description"}
+                            {role.description ||
+                              role.roleDescription ||
+                              "No description"}
                           </p>
                         </div>
                       </div>
@@ -1404,7 +1411,7 @@ export default function WorkspaceDetailPage() {
                   htmlFor={role.workspaceRoleId}
                   className="flex-1 cursor-pointer"
                 >
-                  {role.name}
+                  {role.name || role.roleName || "Unnamed Role"}
                 </Label>
               </div>
             ))}
