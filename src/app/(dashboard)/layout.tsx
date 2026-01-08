@@ -24,31 +24,78 @@ export default function DashboardLayout({
 
   // Check authentication on mount - wait for hydration to complete
   useEffect(() => {
-    console.log('Dashboard Layout - Auth Check:', { 
-      authLoading, 
-      isAuthenticated, 
-      hasToken: !!token 
+    console.log("Dashboard Layout - Auth Check:", {
+      authLoading,
+      isAuthenticated,
+      hasToken: !!token,
     });
-    
+
+    // Check if we're in the middle of a tenant switch by checking localStorage
+    // During tenant switch, we write a flag to prevent redirect
+    const isSwitchingTenant =
+      typeof window !== "undefined" &&
+      localStorage.getItem("switching-tenant") === "true";
+
+    if (isSwitchingTenant) {
+      console.log("🔄 Tenant switch in progress, skipping auth check");
+      // Clear the flag after a delay
+      setTimeout(() => {
+        localStorage.removeItem("switching-tenant");
+      }, 2000);
+      return;
+    }
+
+    // If loading takes too long (more than 3 seconds), force it to false
+    // This handles cases where rehydration might be stuck
+    const timeoutId = setTimeout(() => {
+      if (authLoading) {
+        console.warn("Auth loading taking too long, forcing completion");
+        const currentState = useAuthStore.getState();
+        if (!currentState.token || !currentState.user) {
+          // No valid session, redirect to login
+          useAuthStore.getState().setLoading(false);
+          router.replace("/auth/signin");
+        } else {
+          // Has session, just set loading to false
+          useAuthStore.getState().setLoading(false);
+        }
+      }
+    }, 3000);
+
     // Wait for auth store to finish hydrating from localStorage
     if (!authLoading) {
-      // Small delay to allow state to settle after navigation from login
+      // Small delay to allow state to settle after navigation from login or tenant switch
       const timer = setTimeout(() => {
         const currentState = useAuthStore.getState();
-        console.log('Dashboard Layout - State Check:', {
+        console.log("Dashboard Layout - State Check:", {
           isAuthenticated: currentState.isAuthenticated,
           hasToken: !!currentState.token,
-          user: currentState.user?.email
+          user: currentState.user?.email,
         });
-        
+
+        // Double-check we're not switching tenants
+        const stillSwitching =
+          typeof window !== "undefined" &&
+          localStorage.getItem("switching-tenant") === "true";
+
+        if (stillSwitching) {
+          console.log("🔄 Still switching tenant, skipping redirect");
+          return;
+        }
+
         if (!currentState.isAuthenticated || !currentState.token) {
-          console.log('Dashboard Layout - Redirecting to signin');
+          console.log("Dashboard Layout - Redirecting to signin");
           router.replace("/auth/signin");
         }
-      }, 100);
+      }, 200); // Increased delay to allow tenant switch to complete
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(timeoutId);
+      };
     }
+
+    return () => clearTimeout(timeoutId);
   }, [authLoading, router, isAuthenticated, token]);
 
   // Load workspaces when authenticated
@@ -99,5 +146,6 @@ export default function DashboardLayout({
     </div>
   );
 }
+
 
 

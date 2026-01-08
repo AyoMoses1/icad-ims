@@ -7,6 +7,11 @@ import {
   EffectivePermission,
 } from "@/types";
 import { safeLocalStorage } from "@/lib/utils";
+import {
+  getWorkspacesFromToken,
+  getDefaultWorkspaceId,
+  type WorkspaceFromToken,
+} from "@/lib/token-utils";
 
 interface WorkspaceState {
   // State
@@ -29,6 +34,7 @@ interface WorkspaceState {
   setLoadingWorkspaces: (loading: boolean) => void;
   setLoadingResources: (loading: boolean) => void;
   clearWorkspaceData: () => void;
+  initializeFromToken: (token: string) => void;
 
   // Permission checks
   hasPermission: (resourceId: string, permissionCode: string) => boolean;
@@ -101,6 +107,56 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         });
       },
 
+      /**
+       * Initialize workspaces from JWT token
+       * Extracts workspaces from token and sets the default workspace
+       */
+      initializeFromToken: (token: string) => {
+        try {
+          // Extract workspaces from token
+          const workspacesFromToken = getWorkspacesFromToken(token);
+
+          // Convert to Workspace format, preserving workspaceCode
+          const workspaces: (Workspace & { workspaceCode?: string })[] = workspacesFromToken.map((ws) => ({
+            workspaceId: ws.workspaceId,
+            name: ws.workspaceName,
+            description: "",
+            isActive: true,
+            isDeleted: false,
+            color: undefined,
+            createdBy: "",
+            createdAt: "",
+            updatedAt: "",
+            workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
+          }));
+
+          set({ workspaces });
+
+          // Set default workspace from token
+          const defaultWorkspaceId = getDefaultWorkspaceId(token);
+          if (defaultWorkspaceId) {
+            const defaultWorkspace =
+              workspaces.find((w) => w.workspaceId === defaultWorkspaceId) ||
+              workspaces[0] ||
+              null;
+            if (defaultWorkspace) {
+              set({
+                currentWorkspace: defaultWorkspace,
+                currentWorkspaceId: defaultWorkspaceId,
+              });
+            }
+          } else if (workspaces.length > 0) {
+            // If no default in token, use first workspace
+            set({
+              currentWorkspace: workspaces[0],
+              currentWorkspaceId: workspaces[0].workspaceId,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to initialize workspaces from token:", error);
+        }
+      },
+
       // Permission checks
       hasPermission: (resourceId: string, permissionCode: string) => {
         const { userPermissions } = get();
@@ -154,6 +210,3 @@ export const useWorkspaceResources = () =>
   useWorkspaceStore((state) => state.resources);
 export const useWorkspaceRoles = () =>
   useWorkspaceStore((state) => state.roles);
-
-
-

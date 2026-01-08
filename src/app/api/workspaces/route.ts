@@ -1,58 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mockDataStore, generateId } from "@/lib/mock-data";
+import { apiClient, apiPost } from "@/lib/api-client";
 import { Workspace } from "@/types";
 
 // GET /api/workspaces - List all workspaces
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search")?.toLowerCase();
-    const page = parseInt(searchParams.get("page") || "1");
-    const pageSize = parseInt(searchParams.get("pageSize") || "10");
-    const includeInactive = searchParams.get("includeInactive") === "true";
+    const search = searchParams.get("search");
+    const page = searchParams.get("page");
+    const pageSize = searchParams.get("pageSize");
+    const includeInactive = searchParams.get("includeInactive");
 
-    let workspaces = mockDataStore.workspaces;
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (search) queryParams.append("search", search);
+    if (page) queryParams.append("page", page);
+    if (pageSize) queryParams.append("pageSize", pageSize);
+    if (includeInactive) queryParams.append("includeInactive", includeInactive);
 
-    // Filter by active status
-    if (!includeInactive) {
-      workspaces = workspaces.filter((w) => w.isActive);
-    }
+    const queryString = queryParams.toString();
+    const endpoint = `/api/workspaces${queryString ? `?${queryString}` : ""}`;
 
-    // Filter by search
-    if (search) {
-      workspaces = workspaces.filter(
-        (w) =>
-          w.name.toLowerCase().includes(search) ||
-          w.description.toLowerCase().includes(search)
-      );
-    }
-
-    // Paginate
-    const totalCount = workspaces.length;
-    const totalPages = Math.ceil(totalCount / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const paginatedWorkspaces = workspaces.slice(
-      startIndex,
-      startIndex + pageSize
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: paginatedWorkspaces,
-      pageNumber: page,
-      pageSize,
-      totalCount,
-      totalPages,
-      hasPreviousPage: page > 1,
-      hasNextPage: page < totalPages,
-    });
+    const response = await apiClient<Workspace[]>(endpoint);
+    return NextResponse.json(response);
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "INTERNAL_ERROR",
-          message: "Failed to fetch workspaces",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch workspaces",
         },
       },
       { status: 500 }
@@ -64,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, icon, color } = body;
+    const { name, description, icon, color, isActive } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -76,58 +56,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicate name
-    const existing = mockDataStore.workspaces.find(
-      (w) => w.name.toLowerCase() === name.toLowerCase()
-    );
-    if (existing) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "DUPLICATE_NAME",
-            message: "A workspace with this name already exists",
-          },
-        },
-        { status: 409 }
-      );
-    }
-
-    const newWorkspace: Workspace = {
-      workspaceId: generateId("ws"),
+    const response = await apiPost<Workspace>("/api/workspaces", {
       name,
       description: description || "",
       icon: icon || "Boxes",
       color: color || "#6366F1",
-      isActive: true,
-      createdBy: "user-001", // Would come from auth context
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      isActive: isActive !== undefined ? isActive : true,
+    });
 
-    mockDataStore.addWorkspace(newWorkspace);
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: newWorkspace,
-        message: "Workspace created successfully",
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(response, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "INTERNAL_ERROR",
-          message: "Failed to create workspace",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to create workspace",
         },
       },
       { status: 500 }
     );
   }
 }
-
-
-

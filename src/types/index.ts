@@ -61,46 +61,46 @@ export interface UserWithFullName extends User {
 }
 
 export interface UsersListResponse {
-  "apiVersion": "string",
-  "success": boolean,
-  "code": string,
-  "message": string,
-  "requestId": string,
-  "data": {
-    "items":[ 
+  apiVersion: string;
+  success: boolean;
+  code: string;
+  message: string;
+  requestId: string;
+  data: {
+    items: [
       {
-        "id": string,
-        "userName": string,
-        "email": string,
-        "firstName": string,
-        "middleName": string,
-        "lastName": string,
-        "dateOfBirth": string,
-        "country": string,
-        "status": UserStatus,
-        "emailVerified": boolean,
-        "phoneVerified": boolean,
-        "twoFactorEnabled": boolean,
-          "isActive": boolean,
-        "createdAt": string,
-        "updatedAt": string,
-        "dateCreated": string,
-        "dateModified": string,
-        "fullName": string,
-        "tenantId": string
-      }
-    ],
-    "totalCount": number,
-    "pageNumber": number,
-    "pageSize": number,
-    "totalPages": number,
-    "hasPreviousPage": boolean,
-    "hasNextPage": boolean
-  },
-  "error": {
-    "message": "string",
-    "code": "string"
-  }
+        id: string;
+        userName: string;
+        email: string;
+        firstName: string;
+        middleName: string;
+        lastName: string;
+        dateOfBirth: string;
+        country: string;
+        status: UserStatus;
+        emailVerified: boolean;
+        phoneVerified: boolean;
+        twoFactorEnabled: boolean;
+        isActive: boolean;
+        createdAt: string;
+        updatedAt: string;
+        dateCreated: string;
+        dateModified: string;
+        fullName: string;
+        tenantId: string;
+      },
+    ];
+    totalCount: number;
+    pageNumber: number;
+    pageSize: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  error: {
+    message: string;
+    code: string;
+  };
 }
 
 export interface Address {
@@ -133,10 +133,12 @@ export interface IdentificationDocument {
 export interface Tenant {
   tenantId: string;
   userId: string;
-  name: string;
+  name?: string | null;
   createdAt: string;
-  isActive: boolean;
-  createdBy: string;
+  isActive?: boolean;
+  createdBy?: string;
+  role?: string | null;
+  joinedAt?: string | null;
 }
 
 export interface Workspace {
@@ -146,6 +148,7 @@ export interface Workspace {
   icon?: string;
   color?: string;
   isActive: boolean;
+  isDeleted?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -172,6 +175,15 @@ export interface WorkspaceMember {
   createdBy: string;
   createdAt: string;
   user?: User;
+  // Tenant-specific roles from API (Issue #1 & #2 fix)
+  workspaceRoles?: string[];
+  // Additional fields from API response
+  tenantName?: string;
+  workspaceName?: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userFullName?: string;
 }
 
 export interface WorkspaceMembersRole {
@@ -186,6 +198,21 @@ export interface WorkspaceMembersRole {
 // Role Types
 // ============================================================================
 
+// Resource Permission DTO (from API)
+export interface ResourcePermissionDto {
+  resourceId: string;
+  resourceName: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canImport?: boolean;
+  canExport?: boolean;
+  canApprove?: boolean;
+  canManage?: boolean;
+  canReject?: boolean;
+}
+
 export interface WorkspaceRole {
   workspaceRoleId: string;
   userWorkspaceId: string;
@@ -197,6 +224,12 @@ export interface WorkspaceRole {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  // Optional: Permissions array from API (Issue #3 fix)
+  permissions?: ResourcePermissionDto[];
+  // Backend may also return these fields directly
+  roleName?: string;
+  roleCode?: string | null;
+  roleDescription?: string;
 }
 
 export interface RoleResources {
@@ -234,11 +267,14 @@ export interface WorkspaceResource {
 export interface Permission {
   permissionId: string;
   permissionName: string;
-  description: string;
-  isActive: boolean;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  permissionCode: string;
+  description?: string | null;
+  isActive?: boolean;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  tenantId?: string | null;
+  isSystemPermission?: boolean;
 }
 
 export interface WorkspaceRolePermission {
@@ -427,7 +463,7 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
-  data: T[];
+  items: T[];
   pageNumber: number;
   pageSize: number;
   totalCount: number;
@@ -484,5 +520,64 @@ export interface FormState {
 
 export type FormMode = "create" | "edit" | "view";
 
+// ============================================================================
+// Invitation Types
+// ============================================================================
 
+export enum InvitationStatus {
+  Pending = "Pending",
+  Accepted = "Accepted",
+  Declined = "Declined",
+  Expired = "Expired",
+}
 
+export interface InvitationDto {
+  invitationId: string;
+  tenantId?: string | null;
+  tenantName?: string | null;
+  email?: string | null;
+  userId?: string | null;
+  invitedByUserId: string;
+  invitedByName?: string | null;
+  roleId?: string | null;
+  roleName?: string | null;
+  invitationToken?: string | null;
+  status: InvitationStatus;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  declinedAt?: string | null;
+  message?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  invitationLink?: string | null;
+  workspaceIds?: string[] | null;
+}
+
+export interface CreateInvitationRequestDto {
+  email: string;
+  roleId?: string | null;
+  workspaceIds?: string[] | null;
+  message?: string | null;
+}
+
+export interface AcceptInvitationRequestDto {
+  invitationToken: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// Tenant Management Types
+// ============================================================================
+
+export interface TenantDto {
+  tenantId?: string | null;
+  userId: string;
+  name?: string | null;
+  createdAt: string;
+  role?: string | null;
+  joinedAt?: string | null;
+}
+
+export interface SwitchTenantRequestDto {
+  tenantId: string;
+}

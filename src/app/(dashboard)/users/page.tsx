@@ -46,7 +46,20 @@ import {
 } from "@/components/shared";
 import { User, UserWithFullName, UserStatus, UsersListResponse } from "@/types";
 import { formatDate, getInitials } from "@/lib/utils";
-import { apiGet, apiPost, apiPut, apiDelete, apiPostAuth } from "@/lib/api-client";
+import {
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+  apiPostAuth,
+} from "@/lib/api-client";
+import {
+  getUsers,
+  getUserById,
+  createUser,
+  activateUser,
+  deactivateUser,
+} from "@/lib/services/user-service";
 
 const statusColors: Record<
   UserStatus,
@@ -85,25 +98,19 @@ export default function UsersPage() {
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      const result = await apiGet<UserWithFullName[]>("/api/users");
+      const result = await getUsers();
       if (result.success && result.data) {
         // Handle both array and paginated response formats
         let usersData: UserWithFullName[];
-        
+
         if (Array.isArray(result.data)) {
-          // Next.js API route returns array directly
           usersData = result.data;
-        } else if ((result.data as any)?.data?.items) {
-          // Backend API returns nested structure: { data: { items: [...] } }
-          usersData = (result.data as any).data.items;
         } else if ((result.data as any)?.items) {
-          // Alternative nested structure: { items: [...] }
           usersData = (result.data as any).items;
         } else {
-          // Fallback: try to use data as-is
           usersData = result.data as any;
         }
-        
+
         setUsers(usersData);
       }
     } catch (error) {
@@ -122,15 +129,9 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const result = await createUser(formData);
 
-      const result = await response.json();
-
-      if (result.success) {
+      if (result.success && result.data) {
         toast.success("User created successfully");
         setIsCreateOpen(false);
         resetForm();
@@ -139,7 +140,9 @@ export default function UsersPage() {
         toast.error(result.error?.message || "Failed to create user");
       }
     } catch (error) {
-      toast.error("Failed to create user");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create user"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -165,7 +168,9 @@ export default function UsersPage() {
         toast.error(result.error?.message || "Failed to update user");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update user");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update user"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -187,7 +192,9 @@ export default function UsersPage() {
         toast.error(result.error?.message || "Failed to delete user");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete user");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete user"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -256,7 +263,7 @@ export default function UsersPage() {
       id: "createdAt",
       header: "Joined",
       accessorKey: "createdAt",
-      cell: (user) => formatDate(user.createdAt),
+      cell: (user) => (user.createdAt ? formatDate(user.createdAt) : "N/A"),
       sortable: true,
     },
     {
@@ -497,6 +504,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-
-

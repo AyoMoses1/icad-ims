@@ -213,7 +213,8 @@ export default function ResourcesPage() {
     {
       id: "createdAt",
       header: "Created",
-      cell: (resource) => formatDate(resource.createdAt),
+      cell: (resource) =>
+        resource.createdAt ? formatDate(resource.createdAt) : "N/A",
       sortable: true,
     },
     {
@@ -384,6 +385,3 @@ export default function ResourcesPage() {
     </div>
   );
 }
-
-
-
