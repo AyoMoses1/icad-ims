@@ -239,10 +239,13 @@ export default function WorkspaceDetailPage() {
 
         // Transform roles to match expected structure
         // Backend returns roleName and roleDescription
+        // Also includes permissions array (Issue #3 fix)
         const rolesData: WorkspaceRole[] = rawRolesData.map((role: any) => ({
           ...role,
           name: role.roleName || role.name || "Unnamed Role",
           description: role.roleDescription || role.description || "",
+          // Preserve permissions array if present (API now includes permissions)
+          permissions: role.permissions || undefined,
         }));
 
         if (process.env.NODE_ENV === "development") {
@@ -390,6 +393,14 @@ export default function WorkspaceDetailPage() {
                 createdBy: item.createdBy || "",
                 createdAt: item.createdAt || "",
                 user: userData,
+                // Preserve tenant-specific workspaceRoles from API (Issue #1 & #2 fix)
+                workspaceRoles: item.workspaceRoles || undefined,
+                tenantName: item.tenantName,
+                workspaceName: item.workspaceName,
+                userId: item.userId,
+                userName: item.userName,
+                userEmail: item.userEmail,
+                userFullName: item.userFullName,
               };
             }
 
@@ -410,6 +421,14 @@ export default function WorkspaceDetailPage() {
                 createdBy: item.createdBy || "",
                 createdAt: item.createdAt || item.dateCreated || "",
                 user: userData,
+                // Preserve tenant-specific workspaceRoles from API (Issue #1 & #2 fix)
+                workspaceRoles: item.workspaceRoles || undefined,
+                tenantName: item.tenantName,
+                workspaceName: item.workspaceName,
+                userId: item.userId,
+                userName: item.userName,
+                userEmail: item.userEmail,
+                userFullName: item.userFullName,
               };
             }
 

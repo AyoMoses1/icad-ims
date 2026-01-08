@@ -175,6 +175,15 @@ export interface WorkspaceMember {
   createdBy: string;
   createdAt: string;
   user?: User;
+  // Tenant-specific roles from API (Issue #1 & #2 fix)
+  workspaceRoles?: string[];
+  // Additional fields from API response
+  tenantName?: string;
+  workspaceName?: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userFullName?: string;
 }
 
 export interface WorkspaceMembersRole {
@@ -189,6 +198,21 @@ export interface WorkspaceMembersRole {
 // Role Types
 // ============================================================================
 
+// Resource Permission DTO (from API)
+export interface ResourcePermissionDto {
+  resourceId: string;
+  resourceName: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canImport?: boolean;
+  canExport?: boolean;
+  canApprove?: boolean;
+  canManage?: boolean;
+  canReject?: boolean;
+}
+
 export interface WorkspaceRole {
   workspaceRoleId: string;
   userWorkspaceId: string;
@@ -200,6 +224,12 @@ export interface WorkspaceRole {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  // Optional: Permissions array from API (Issue #3 fix)
+  permissions?: ResourcePermissionDto[];
+  // Backend may also return these fields directly
+  roleName?: string;
+  roleCode?: string | null;
+  roleDescription?: string;
 }
 
 export interface RoleResources {

@@ -97,3 +97,5 @@ Then update the routing function to use these variables instead of hardcoded URL
 4. Should redirect to the corresponding application with token in URL
 5. Target application should extract token and initialize user session
 
+
+
