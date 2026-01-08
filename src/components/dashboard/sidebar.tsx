@@ -187,18 +187,19 @@ export function Sidebar() {
             const defaultWorkspaceId = getDefaultWorkspaceId(token);
 
             // Convert token workspaces to Workspace format, preserving workspaceCode
-            const workspaces: (Workspace & { workspaceCode?: string })[] = workspacesFromToken.map((ws) => ({
-              workspaceId: ws.workspaceId,
-              name: ws.workspaceName,
-              description: "",
-              isActive: true,
-              isDeleted: false,
-              color: undefined,
-              createdBy: "",
-              createdAt: "",
-              updatedAt: "",
-              workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
-            }));
+            const workspaces: (Workspace & { workspaceCode?: string })[] =
+              workspacesFromToken.map((ws) => ({
+                workspaceId: ws.workspaceId,
+                name: ws.workspaceName,
+                description: "",
+                isActive: true,
+                isDeleted: false,
+                color: undefined,
+                createdBy: "",
+                createdAt: "",
+                updatedAt: "",
+                workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
+              }));
 
             setWorkspaces(workspaces);
 
@@ -592,7 +593,9 @@ export function Sidebar() {
                                             key={child.resourceId}
                                             item={{
                                               title: child.name,
-                                              href: normalizeResourceUrl(child.url),
+                                              href: normalizeResourceUrl(
+                                                child.url
+                                              ),
                                             }}
                                             isChild
                                             icon={ChildIcon}
@@ -611,7 +614,9 @@ export function Sidebar() {
                                     <NavLink
                                       item={{
                                         title: resource.name,
-                                        href: normalizeResourceUrl(resource.url),
+                                        href: normalizeResourceUrl(
+                                          resource.url
+                                        ),
                                       }}
                                       isChild
                                       icon={ResourceIcon}

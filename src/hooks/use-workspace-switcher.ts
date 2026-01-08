@@ -211,7 +211,3 @@ export function useWorkspaceSwitcher() {
     hasPermission,
   };
 }
-
-
-
-

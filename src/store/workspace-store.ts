@@ -117,18 +117,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const workspacesFromToken = getWorkspacesFromToken(token);
 
           // Convert to Workspace format, preserving workspaceCode
-          const workspaces: (Workspace & { workspaceCode?: string })[] = workspacesFromToken.map((ws) => ({
-            workspaceId: ws.workspaceId,
-            name: ws.workspaceName,
-            description: "",
-            isActive: true,
-            isDeleted: false,
-            color: undefined,
-            createdBy: "",
-            createdAt: "",
-            updatedAt: "",
-            workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
-          }));
+          const workspaces: (Workspace & { workspaceCode?: string })[] =
+            workspacesFromToken.map((ws) => ({
+              workspaceId: ws.workspaceId,
+              name: ws.workspaceName,
+              description: "",
+              isActive: true,
+              isDeleted: false,
+              color: undefined,
+              createdBy: "",
+              createdAt: "",
+              updatedAt: "",
+              workspaceCode: ws.workspaceCode, // Preserve workspaceCode for routing
+            }));
 
           set({ workspaces });
 

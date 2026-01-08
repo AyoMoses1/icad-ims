@@ -101,17 +101,23 @@ export default function UsersPage() {
       const result = await getUsers();
       if (result.success && result.data) {
         // Handle both array and paginated response formats
-        let usersData: UserWithFullName[];
+        let usersData: User[] = [];
 
         if (Array.isArray(result.data)) {
           usersData = result.data;
         } else if ((result.data as any)?.items) {
           usersData = (result.data as any).items;
         } else {
-          usersData = result.data as any;
+          usersData = [];
         }
 
-        setUsers(usersData);
+        // Map User[] to UserWithFullName[] by adding fullName property
+        const usersWithFullName: UserWithFullName[] = usersData.map((user) => ({
+          ...user,
+          fullName: `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim(),
+        }));
+
+        setUsers(usersWithFullName);
       }
     } catch (error) {
       console.error("Error loading users:", error);

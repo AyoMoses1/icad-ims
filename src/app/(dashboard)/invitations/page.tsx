@@ -51,6 +51,7 @@ import {
   InvitationDto,
   InvitationStatus,
   CreateInvitationRequestDto,
+  PaginatedResponse,
 } from "@/types";
 import { formatDate } from "@/lib/utils";
 import {
@@ -199,9 +200,14 @@ export default function InvitationsPage() {
           const result = await getMyInvitations();
 
           if (result.success && result.data) {
-            let invitationsList = Array.isArray(result.data)
-              ? result.data
-              : [result.data];
+            // Handle both array and paginated response
+            let invitationsList: InvitationDto[] = [];
+            if (Array.isArray(result.data)) {
+              invitationsList = result.data;
+            } else if (result.data && typeof result.data === 'object' && 'items' in result.data) {
+              // It's a PaginatedResponse
+              invitationsList = (result.data as any).items || [];
+            }
 
             // Apply filters client-side for received invitations
             if (status && status !== "all") {
@@ -255,8 +261,19 @@ export default function InvitationsPage() {
           const result = await getInvitations(filters);
 
           if (result.success && result.data) {
-            setInvitations(result.data.items || []);
-            setTotalCount(result.data.totalCount || 0);
+            // Handle both array and paginated response
+            if (Array.isArray(result.data)) {
+              setInvitations(result.data);
+              setTotalCount(result.data.length);
+            } else if (result.data && typeof result.data === 'object' && 'items' in result.data) {
+              // It's a PaginatedResponse
+              const paginatedData = result.data as PaginatedResponse<InvitationDto>;
+              setInvitations(paginatedData.items || []);
+              setTotalCount(paginatedData.totalCount || 0);
+            } else {
+              setInvitations([]);
+              setTotalCount(0);
+            }
           } else {
             toast.error(result.error?.message || "Failed to load invitations");
             setInvitations([]);

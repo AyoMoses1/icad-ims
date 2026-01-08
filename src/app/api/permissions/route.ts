@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
         (p) =>
           p.permissionName.toLowerCase().includes(search) ||
           p.permissionCode.toLowerCase().includes(search) ||
-          p.description.toLowerCase().includes(search)
+          (p.description || "").toLowerCase().includes(search)
       );
     }
 
