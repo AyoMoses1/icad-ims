@@ -20,19 +20,39 @@ export default function DashboardPage() {
 
   /**
    * Gets application URL for workspace
-   * For now, all workspaces redirect to localhost:3001
-   * TODO: When backend adds URL field to workspace, use: workspace.url || defaultUrl
+   * Maps workspace codes/names to their respective application URLs
    */
   const getApplicationUrl = (workspace: (typeof workspaces)[0]): string => {
     if (!token) {
       return `/workspaces/${workspace.workspaceId}`;
     }
 
-    // TODO: When backend adds URL field to workspace, use:
-    // const workspaceUrl = (workspace as any).url || (workspace as any).applicationUrl;
-    // return workspaceUrl ? `${workspaceUrl}?token=${encodeURIComponent(token)}` : defaultUrl;
+    // Workspace to application URL mapping
+    const applicationRoutes: Record<string, string> = {
+      'SEAFARER': 'http://localhost:3001',
+      'TRAINING': 'http://localhost:3002',
+      'TRAINING_INSTITUTION': 'http://localhost:3002',
+      'WASTE_MANAGEMENT': 'https://mems-waste-mgmt.netlify.app',
+      'WASTE_MGMT': 'https://mems-waste-mgmt.netlify.app',
+      'AGENT': 'http://localhost:3003',
+      'ADMIN': 'http://localhost:3000',
+    };
 
-    // For now, default all workspaces to localhost:3001
+    // Get workspace code (if available)
+    const workspaceCode = (workspace as any).workspaceCode?.toUpperCase();
+    
+    // Try to match by workspace code first
+    if (workspaceCode && applicationRoutes[workspaceCode]) {
+      return `${applicationRoutes[workspaceCode]}?token=${encodeURIComponent(token)}`;
+    }
+
+    // Fallback: Try to match by workspace name
+    const workspaceName = workspace.name.toUpperCase().replace(/\s+/g, '_');
+    if (applicationRoutes[workspaceName]) {
+      return `${applicationRoutes[workspaceName]}?token=${encodeURIComponent(token)}`;
+    }
+
+    // Default to Seafarer application (3001) for unmapped workspaces
     const defaultApplicationUrl = "http://localhost:3001";
     return `${defaultApplicationUrl}?token=${encodeURIComponent(token)}`;
   };
