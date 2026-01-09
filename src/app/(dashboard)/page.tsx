@@ -21,12 +21,12 @@ export default function DashboardPage() {
       try {
         // Fetch workspaces from API to get workspaceUrl
         const response = await getWorkspaces();
-        
+
         if (response.success && response.data) {
-          const apiWorkspaces = Array.isArray(response.data) 
-            ? response.data 
+          const apiWorkspaces = Array.isArray(response.data)
+            ? response.data
             : response.data.items || [];
-          
+
           // Create a map of workspaceId to workspaceUrl from API
           const workspaceUrlMap = new Map<string, string>();
           apiWorkspaces.forEach((ws: Workspace) => {
@@ -34,7 +34,7 @@ export default function DashboardPage() {
               workspaceUrlMap.set(ws.workspaceId, ws.workspaceUrl);
             }
           });
-          
+
           // Merge workspaceUrl from API with workspaces from store
           const mergedWorkspaces = storeWorkspaces.map((storeWs) => {
             const apiUrl = workspaceUrlMap.get(storeWs.workspaceId);
@@ -43,7 +43,7 @@ export default function DashboardPage() {
               workspaceUrl: apiUrl || storeWs.workspaceUrl,
             };
           });
-          
+
           setWorkspacesWithUrls(mergedWorkspaces);
         } else {
           // Fallback to store workspaces if API call fails
