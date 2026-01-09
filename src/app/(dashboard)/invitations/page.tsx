@@ -204,9 +204,10 @@ export default function InvitationsPage() {
             let invitationsList: InvitationDto[] = [];
             if (Array.isArray(result.data)) {
               invitationsList = result.data;
-            } else if (result.data && typeof result.data === 'object' && 'items' in result.data) {
-              // It's a PaginatedResponse
-              invitationsList = (result.data as any).items || [];
+            } else {
+              // It's a PaginatedResponse - extract items
+              const paginatedData = result.data as PaginatedResponse<InvitationDto>;
+              invitationsList = paginatedData.items || [];
             }
 
             // Apply filters client-side for received invitations

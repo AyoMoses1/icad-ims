@@ -147,6 +147,7 @@ export interface Workspace {
   description: string;
   icon?: string;
   color?: string;
+  workspaceUrl?: string;
   isActive: boolean;
   isDeleted?: boolean;
   createdBy: string;

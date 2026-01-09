@@ -7,37 +7,80 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore, useWorkspaceStore } from "@/store";
+import { getWorkspaces } from "@/lib/services/workspace-service";
+import type { Workspace } from "@/types";
 
 export default function DashboardPage() {
   const { token } = useAuthStore();
-  const { workspaces } = useWorkspaceStore();
+  const { workspaces: storeWorkspaces } = useWorkspaceStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [workspacesWithUrls, setWorkspacesWithUrls] = useState<Workspace[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchWorkspacesWithUrls = async () => {
+      try {
+        // Fetch workspaces from API to get workspaceUrl
+        const response = await getWorkspaces();
+        
+        if (response.success && response.data) {
+          const apiWorkspaces = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || [];
+          
+          // Create a map of workspaceId to workspaceUrl from API
+          const workspaceUrlMap = new Map<string, string>();
+          apiWorkspaces.forEach((ws: Workspace) => {
+            if (ws.workspaceUrl) {
+              workspaceUrlMap.set(ws.workspaceId, ws.workspaceUrl);
+            }
+          });
+          
+          // Merge workspaceUrl from API with workspaces from store
+          const mergedWorkspaces = storeWorkspaces.map((storeWs) => {
+            const apiUrl = workspaceUrlMap.get(storeWs.workspaceId);
+            return {
+              ...storeWs,
+              workspaceUrl: apiUrl || storeWs.workspaceUrl,
+            };
+          });
+          
+          setWorkspacesWithUrls(mergedWorkspaces);
+        } else {
+          // Fallback to store workspaces if API call fails
+          setWorkspacesWithUrls(storeWorkspaces);
+        }
+      } catch (error) {
+        console.error("Failed to fetch workspaces with URLs:", error);
+        // Fallback to store workspaces if API call fails
+        setWorkspacesWithUrls(storeWorkspaces);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (storeWorkspaces.length > 0) {
+      fetchWorkspacesWithUrls();
+    } else {
+      setIsLoading(false);
+      setWorkspacesWithUrls(storeWorkspaces);
+    }
+  }, [storeWorkspaces]);
 
   /**
    * Gets application URL for workspace
-   * For now, all workspaces redirect to localhost:3001
-   * TODO: When backend adds URL field to workspace, use: workspace.url || defaultUrl
+   * Uses workspaceUrl from workspace if available, otherwise falls back to localhost:3001
    */
-  const getApplicationUrl = (workspace: (typeof workspaces)[0]): string => {
+  const getApplicationUrl = (workspace: Workspace): string => {
     if (!token) {
       return `/workspaces/${workspace.workspaceId}`;
     }
 
-    // TODO: When backend adds URL field to workspace, use:
-    // const workspaceUrl = (workspace as any).url || (workspace as any).applicationUrl;
-    // return workspaceUrl ? `${workspaceUrl}?token=${encodeURIComponent(token)}` : defaultUrl;
-
-    // For now, default all workspaces to localhost:3001
-    const defaultApplicationUrl = "http://localhost:3001";
-    return `${defaultApplicationUrl}?token=${encodeURIComponent(token)}`;
+    // Use workspaceUrl from workspace if available
+    const workspaceUrl = workspace.workspaceUrl || "http://localhost:3001";
+    return `${workspaceUrl}?token=${encodeURIComponent(token)}`;
   };
 
-  const handleWorkspaceClick = (workspace: (typeof workspaces)[0]) => {
+  const handleWorkspaceClick = (workspace: Workspace) => {
     if (!token) {
       return;
     }
@@ -71,8 +114,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))
-          ) : workspaces && workspaces.length > 0 ? (
-            workspaces.map((workspace) => (
+          ) : workspacesWithUrls && workspacesWithUrls.length > 0 ? (
+            workspacesWithUrls.map((workspace) => (
               <Card
                 key={workspace.workspaceId}
                 className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"

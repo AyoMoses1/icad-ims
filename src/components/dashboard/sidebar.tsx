@@ -89,6 +89,7 @@ interface WorkspaceMenu {
   workspaceId: string;
   workspaceName: string;
   workspaceCode: string;
+  workspaceUrl?: string;
   resources: MenuResource[];
 }
 
@@ -251,6 +252,7 @@ export function Sidebar() {
           workspaceId: menu.workspaceId,
           name: menu.workspaceName,
           description: "",
+          workspaceUrl: menu.workspaceUrl,
           isActive: true,
           isDeleted: false,
           color: undefined,
@@ -440,6 +442,7 @@ export function Sidebar() {
                   workspaceId: workspaceMenu.workspaceId,
                   name: workspaceMenu.workspaceName,
                   description: "",
+                  workspaceUrl: workspaceMenu.workspaceUrl,
                   isActive: true,
                   isDeleted: false,
                   color: undefined,

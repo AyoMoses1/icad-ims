@@ -104,11 +104,15 @@ export default function DashboardLayout({
       try {
         const response = await fetch("/api/workspaces");
         const result = await response.json();
-        if (result.success) {
-          setWorkspaces(result.data);
+        if (result.success && result.data) {
+          // Handle both paginated response (with items) and direct array response
+          const workspacesData = Array.isArray(result.data)
+            ? result.data
+            : result.data.items || [];
+          setWorkspaces(workspacesData);
           // Set first workspace as current if none selected
-          if (!currentWorkspaceId && result.data.length > 0) {
-            setCurrentWorkspaceById(result.data[0].workspaceId);
+          if (!currentWorkspaceId && workspacesData.length > 0) {
+            setCurrentWorkspaceById(workspacesData[0].workspaceId);
           }
         }
       } catch (error) {
@@ -146,6 +150,8 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+
 
 
 
