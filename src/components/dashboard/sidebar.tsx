@@ -68,8 +68,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore, useWorkspaceStore, useUIStore } from "@/store";
-import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
-import { apiGet } from "@/lib/api-client";
+import {
+  Workspace,
+  WorkspaceResource,
+  PaginatedResponse,
+  UserInfo,
+} from "@/types";
+import { apiGet, apiGetAuth } from "@/lib/api-client";
 import {
   getWorkspacesFromToken,
   getDefaultWorkspaceId,
@@ -163,6 +168,59 @@ const normalizeResourceUrl = (url: string | null | undefined): string => {
   return url;
 };
 
+// Helper function to check if user is OWNER of a workspace
+// Based on the user info response structure:
+// roles: [{ workspaceId: "...", tenants: [{ roles: [{ role: "OWNER" }] }] }]
+const isWorkspaceOwner = (
+  userInfo: UserInfo | null,
+  workspaceId: string
+): boolean => {
+  if (!userInfo) {
+    return false;
+  }
+
+  // Access roles from userInfo - it's a complex structure, not just string[]
+  const roles = (userInfo as any).roles;
+
+  if (!roles || !Array.isArray(roles)) {
+    return false;
+  }
+
+  // Find the role entry for this workspace (compare as strings to ensure exact match)
+  // Normalize UUIDs by trimming and converting to lowercase for comparison
+  const normalizedWorkspaceId = String(workspaceId).trim().toLowerCase();
+
+  const workspaceRole = roles.find((role: any) => {
+    const roleWorkspaceId = String(role.workspaceId || "")
+      .trim()
+      .toLowerCase();
+    return roleWorkspaceId === normalizedWorkspaceId;
+  });
+
+  if (!workspaceRole) {
+    return false;
+  }
+
+  if (!workspaceRole.tenants || !Array.isArray(workspaceRole.tenants)) {
+    return false;
+  }
+
+  // Check if any tenant has OWNER role
+  const isOwner = workspaceRole.tenants.some((tenant: any) => {
+    if (!tenant.roles || !Array.isArray(tenant.roles)) {
+      return false;
+    }
+    return tenant.roles.some((role: any) => {
+      const roleValue = String(role.role || role)
+        .trim()
+        .toUpperCase();
+      return roleValue === "OWNER";
+    });
+  });
+
+  return isOwner;
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -174,11 +232,25 @@ export function Sidebar() {
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   // Load menu immediately after login - menu endpoint contains workspaces user has access to
   // Also initialize workspaces from token as per integration guide
   useEffect(() => {
     if (user) {
+      // Fetch user info to get roles structure for workspace ownership check
+      const fetchUserInfo = async () => {
+        try {
+          const { token } = useAuthStore.getState();
+          if (token) {
+            const info = await apiGetAuth<UserInfo>("/connect/userinfo");
+            setUserInfo(info);
+          }
+        } catch (error) {
+          console.error("Failed to fetch user info:", error);
+        }
+      };
+
       // Try to initialize workspaces from token first (as per integration guide)
       const { token } = useAuthStore.getState();
       if (token) {
@@ -228,7 +300,8 @@ export function Sidebar() {
         }
       }
 
-      // Also load menu (this might have more detailed workspace info)
+      // Fetch user info and load menu
+      fetchUserInfo();
       loadMenu();
     }
   }, [user]);
@@ -408,7 +481,10 @@ export function Sidebar() {
       </div>
 
       {/* Scrollable Navigation */}
-      <ScrollArea className="flex-1 px-3 py-4 sidebar-scroll">
+      <ScrollArea
+        className="flex-1 px-3 py-4 sidebar-scroll"
+        style={{ overflow: "visible" }}
+      >
         {/* System Menu Items */}
         <div className="space-y-1 mb-6">
           <NavLink
@@ -436,6 +512,22 @@ export function Sidebar() {
                 );
                 const isWorkspaceActive =
                   currentWorkspace?.workspaceId === workspaceMenu.workspaceId;
+                const isOwner = isWorkspaceOwner(
+                  userInfo,
+                  workspaceMenu.workspaceId
+                );
+
+                // Debug: Log ownership check
+                if (process.env.NODE_ENV === "development") {
+                  console.log(
+                    `[Sidebar] Workspace "${workspaceMenu.workspaceName}" (${workspaceMenu.workspaceId}):`,
+                    {
+                      isOwner,
+                      hasUserInfo: !!userInfo,
+                      userInfoRoles: userInfo ? (userInfo as any).roles : null,
+                    }
+                  );
+                }
 
                 // Create workspace object for setCurrentWorkspace
                 const workspace: Workspace = {
@@ -452,8 +544,11 @@ export function Sidebar() {
                 };
 
                 return (
-                  <div key={workspaceMenu.workspaceId}>
-                    <div className="flex items-center gap-1">
+                  <div
+                    key={workspaceMenu.workspaceId}
+                    className="relative group"
+                  >
+                    <div className="flex items-center gap-2 w-full min-w-0">
                       <button
                         onClick={async () => {
                           setCurrentWorkspace(workspace);
@@ -484,13 +579,14 @@ export function Sidebar() {
                           }
                         }}
                         className={cn(
-                          "flex items-center justify-between flex-1 px-3 py-2.5 text-sm rounded-lg transition-colors",
+                          "flex items-center justify-between px-3 py-2.5 text-xs rounded-lg transition-colors min-w-0 flex-shrink",
                           isWorkspaceActive || isWorkspaceExpanded
                             ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                            : "text-sidebar-foreground hover:bg-sidebar-muted"
+                            : "text-sidebar-foreground hover:bg-sidebar-muted",
+                          "flex-1 max-w-[calc(100%-3rem)]"
                         )}
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                           {(() => {
                             const WorkspaceIcon = getIconForWorkspace(
                               workspaceMenu.workspaceId ||
@@ -498,41 +594,42 @@ export function Sidebar() {
                             );
                             return (
                               <div
-                                className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
+                                className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0"
                                 style={{
                                   backgroundColor: `#6366F11A`, // light tint
                                   color: "#6366F1",
                                 }}
                               >
-                                <WorkspaceIcon className="h-4 w-4" />
+                                <WorkspaceIcon className="h-3.5 w-3.5" />
                               </div>
                             );
                           })()}
-                          <span className="text-left truncate">
+                          <span className="text-left truncate text-xs">
                             {workspaceMenu.workspaceName}
                           </span>
                         </div>
+
                         {isWorkspaceExpanded ? (
-                          <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" />
+                          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
                         ) : (
-                          <ChevronRight className="h-4 w-4 flex-shrink-0 ml-2" />
+                          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
                         )}
                       </button>
-                      <Link
-                        href={`/workspaces/${workspaceMenu.workspaceId}`}
-                        onClick={() => {
-                          setCurrentWorkspace(workspace);
-                          setMobileSidebarOpen(false);
-                        }}
-                        className={cn(
-                          "px-2 py-2.5 text-xs rounded-lg transition-colors",
-                          "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted",
-                          "flex items-center justify-center"
-                        )}
-                        title="Manage workspace"
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Link>
+                      {/* Settings icon - only show for workspace owners */}
+                      {isOwner && (
+                        <Link
+                          href={`/workspaces/${workspaceMenu.workspaceId}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentWorkspace(workspace);
+                            setMobileSidebarOpen(false);
+                          }}
+                          className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted transition-colors border border-sidebar-border"
+                          title="Manage workspace"
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Link>
+                      )}
                     </div>
                     {isWorkspaceExpanded && workspaceResources.length > 0 && (
                       <div className="mt-1 space-y-1 ml-2">
@@ -719,7 +816,7 @@ export function Sidebar() {
       {/* Mobile Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-in-out lg:hidden",
+          "fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out lg:hidden",
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -727,7 +824,7 @@ export function Sidebar() {
       </aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40">
+      <aside className="hidden lg:flex lg:flex-col lg:w-80 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40">
         <SidebarContent />
       </aside>
     </>
