@@ -445,6 +445,23 @@ export interface UserInfo {
   tenantId?: string;
   permissions?: string[];
   roles?: string[];
+  // Admin fields
+  isAdmin?: boolean;
+  adminDetails?: {
+    isSystemAdmin: boolean;
+    isWorkspaceAdmin: boolean;
+    adminWorkspaces: Array<{
+      workspaceId: string;
+      workspaceName: string;
+      adminRole: string;
+      permissions: string[];
+    }>;
+    adminModules: Array<{
+      module: string;
+      role: string;
+      permissions: string[];
+    }>;
+  };
   [key: string]: unknown; // Allow additional properties
 }
 
@@ -581,4 +598,56 @@ export interface TenantDto {
 
 export interface SwitchTenantRequestDto {
   tenantId: string;
+}
+
+// ============================================================================
+// Admin Role Types
+// ============================================================================
+
+export interface AdminRoleDto {
+  adminRoleId: string;
+  roleName?: string | null;
+  roleCode?: string | null;
+  description?: string | null;
+  isSystemRole: boolean;
+  isActive: boolean;
+  isDeleted: boolean;
+  createdBy?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  modifiedBy?: string | null;
+}
+
+export interface CreateAdminRoleRequestDto {
+  roleName?: string | null;
+  roleCode?: string | null;
+  description?: string | null;
+  isSystemRole?: boolean;
+}
+
+export interface UpdateAdminRoleRequestDto {
+  roleName?: string | null;
+  roleCode?: string | null;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+// ============================================================================
+// Workspace Resource Types
+// ============================================================================
+
+export interface WorkspaceResourceTreeDto {
+  resourceId: string;
+  workspaceId: string;
+  resourceName?: string | null;
+  url?: string | null;
+  parentId?: string | null;
+  children?: WorkspaceResourceTreeDto[] | null;
+}
+
+export interface UpdateWorkspaceResourceRequestDto {
+  resourceName?: string | null;
+  url?: string | null;
+  parentId?: string | null;
+  isActive?: boolean | null;
 }

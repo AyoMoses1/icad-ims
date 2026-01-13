@@ -68,8 +68,8 @@ export default function WorkspacesPage() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    type: "Compliance",
     code: "",
+    workspaceUrl: "",
   });
 
   useEffect(() => {
@@ -110,9 +110,10 @@ export default function WorkspacesPage() {
     setIsSubmitting(true);
     try {
       const result = await apiPost<Workspace>("/api/workspaces", {
-        ...formData,
-        color: "#3EADC0",
-        isActive: true,
+        name: formData.name,
+        code: formData.code || undefined,
+        description: formData.description || undefined,
+        workspaceUrl: formData.workspaceUrl || undefined,
       });
 
       if (result.success) {
@@ -162,8 +163,8 @@ export default function WorkspacesPage() {
     setFormData({
       name: "",
       description: "",
-      type: "Compliance",
       code: "",
+      workspaceUrl: "",
     });
   };
 
@@ -405,23 +406,16 @@ export default function WorkspacesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="type">Workspace Type *</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, type: value })
+              <Label htmlFor="workspaceUrl">Workspace URL</Label>
+              <Input
+                id="workspaceUrl"
+                type="url"
+                placeholder="https://example.com"
+                value={formData.workspaceUrl}
+                onChange={(e) =>
+                  setFormData({ ...formData, workspaceUrl: e.target.value })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Compliance">Compliance</SelectItem>
-                  <SelectItem value="Operations">Operations</SelectItem>
-                  <SelectItem value="Fleet">Fleet Management</SelectItem>
-                  <SelectItem value="Certification">Certification</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
           <DialogFooter>

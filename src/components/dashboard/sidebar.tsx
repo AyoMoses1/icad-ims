@@ -53,6 +53,8 @@ import {
   Navigation,
   Compass,
   ImageIcon,
+  Shield,
+  FolderTree,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -481,16 +483,40 @@ export function Sidebar() {
       </div>
 
       {/* Scrollable Navigation */}
-      <ScrollArea
-        className="flex-1 px-3 py-4 sidebar-scroll"
-        style={{ overflow: "visible" }}
-      >
+      <ScrollArea className="flex-1 px-3 py-4 sidebar-scroll">
         {/* System Menu Items */}
         <div className="space-y-1 mb-6">
           <NavLink
             item={{ title: "Invitations", href: "/invitations" }}
             icon={Mail}
           />
+          {/* Admin Section - Only show if user is admin */}
+          {userInfo?.isAdmin && (
+            <>
+              <NavLink
+                item={{ title: "User Management", href: "/admin/users" }}
+                icon={Shield}
+              />
+              <NavLink
+                item={{ title: "Admin Roles", href: "/admin/roles" }}
+                icon={Shield}
+              />
+              <NavLink
+                item={{
+                  title: "Workspace Resources",
+                  href: "/admin/resources",
+                }}
+                icon={FolderTree}
+              />
+              <NavLink
+                item={{
+                  title: "Workspace Management",
+                  href: "/admin/workspaces",
+                }}
+                icon={Building}
+              />
+            </>
+          )}
         </div>
 
         {/* Workspace Label */}
@@ -615,8 +641,8 @@ export function Sidebar() {
                           <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
                         )}
                       </button>
-                      {/* Settings icon - only show for workspace owners */}
-                      {isOwner && (
+                      {/* Settings icon - only show for workspace owners, but not for admin users */}
+                      {isOwner && !userInfo?.isAdmin && (
                         <Link
                           href={`/workspaces/${workspaceMenu.workspaceId}`}
                           onClick={(e) => {

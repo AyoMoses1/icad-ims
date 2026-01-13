@@ -270,8 +270,14 @@ export async function apiClient<T>(
 /**
  * GET request helper
  */
-export async function apiGet<T>(endpoint: string): Promise<ApiResponse<T>> {
-  return apiClient<T>(endpoint, { method: "GET" });
+export async function apiGet<T>(
+  endpoint: string,
+  options?: { headers?: Record<string, string> }
+): Promise<ApiResponse<T>> {
+  return apiClient<T>(endpoint, {
+    method: "GET",
+    headers: options?.headers,
+  });
 }
 
 /**
@@ -279,11 +285,13 @@ export async function apiGet<T>(endpoint: string): Promise<ApiResponse<T>> {
  */
 export async function apiPost<T>(
   endpoint: string,
-  body?: unknown
+  body?: unknown,
+  options?: { headers?: Record<string, string> }
 ): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, {
     method: "POST",
     body: body ? JSON.stringify(body) : undefined,
+    headers: options?.headers,
   });
 }
 
@@ -292,11 +300,13 @@ export async function apiPost<T>(
  */
 export async function apiPut<T>(
   endpoint: string,
-  body?: unknown
+  body?: unknown,
+  options?: { headers?: Record<string, string> }
 ): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, {
     method: "PUT",
     body: body ? JSON.stringify(body) : undefined,
+    headers: options?.headers,
   });
 }
 
@@ -305,19 +315,27 @@ export async function apiPut<T>(
  */
 export async function apiPatch<T>(
   endpoint: string,
-  body?: unknown
+  body?: unknown,
+  options?: { headers?: Record<string, string> }
 ): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, {
     method: "PATCH",
     body: body ? JSON.stringify(body) : undefined,
+    headers: options?.headers,
   });
 }
 
 /**
  * DELETE request helper
  */
-export async function apiDelete<T>(endpoint: string): Promise<ApiResponse<T>> {
-  return apiClient<T>(endpoint, { method: "DELETE" });
+export async function apiDelete<T>(
+  endpoint: string,
+  options?: { headers?: Record<string, string> }
+): Promise<ApiResponse<T>> {
+  return apiClient<T>(endpoint, {
+    method: "DELETE",
+    headers: options?.headers,
+  });
 }
 
 /**
