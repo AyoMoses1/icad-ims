@@ -234,6 +234,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         if (state) {
+          // eslint-disable-next-line no-console
           console.log("Auth store rehydrated:", {
             hasToken: !!state.token,
             hasUser: !!state.user,
@@ -252,6 +253,7 @@ export const useAuthStore = create<AuthState>()(
           // If we have persisted auth data, ensure isAuthenticated is set correctly
           if (hasValidToken && state.user) {
             state.isAuthenticated = true;
+            // eslint-disable-next-line no-console
             console.log("✅ Valid session restored from localStorage");
           } else if (!hasValidToken) {
             // Token expired or invalid
@@ -266,6 +268,7 @@ export const useAuthStore = create<AuthState>()(
           state.isLoading = false;
         } else {
           // No state means no persisted data, set loading to false
+          // eslint-disable-next-line no-console
           console.log("No persisted auth state found - localStorage is empty");
 
           // Check if localStorage actually has data

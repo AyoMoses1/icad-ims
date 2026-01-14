@@ -141,26 +141,24 @@ export async function createAdminUser(
 
 /**
  * Create a new user with role (admin only)
+ * Endpoint: POST /iam/api/v1/admin/users/with-role
+ * Password is optional - auto-generated if not provided
+ * Permission: users.create
  */
-export async function createAdminUserWithRole(
-  userData: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    workspaceId: string;
-    roleId?: string;
-    roleCode?: string;
-    phoneNumber?: string;
-  }
-): Promise<ApiResponse<User>> {
-  const response = await apiPost<User>(
-    `${API_BASE}/with-role`,
-    userData,
-    {
-      headers: getWorkspaceHeaders(userData.workspaceId),
-    }
-  );
+export async function createAdminUserWithRole(userData: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  workspaceId: string;
+  roleCode: string;
+  password?: string; // Optional - auto-generated if not provided
+  roleId?: string; // Optional - role ID
+  phoneNumber?: string;
+  wcoId?: string; // Required for WCO_EMPLOYEE role
+}): Promise<ApiResponse<User>> {
+  const response = await apiPost<User>(`${API_BASE}/with-role`, userData, {
+    headers: getWorkspaceHeaders(userData.workspaceId),
+  });
 
   if (response.success && response.data) {
     if ((response.data as any).data) {

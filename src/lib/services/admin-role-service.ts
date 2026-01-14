@@ -1,6 +1,7 @@
 /**
  * Admin Role Service - API integration for admin role management operations
- * Only SuperAdmin users (email contains @rdlc.com) can perform create, update, and delete operations
+ * Based on Admin_Role_and_User_Creation_Guide.md
+ * All endpoints require workspaceId as a query parameter
  */
 
 import {
@@ -19,52 +20,89 @@ import type {
 const API_BASE = "/api/admin-roles";
 
 /**
- * Get all admin roles
- * Returns only active roles where IsActive = true and IsDeleted = false
+ * Get all admin roles for a workspace
+ * URL: GET /api/admin-roles?workspaceId={workspaceId}
+ * Permission: AdminRoles.view
  */
-export async function getAllAdminRoles(): Promise<
-  ApiResponse<AdminRoleDto[]>
-> {
-  return apiGet<AdminRoleDto[]>(API_BASE);
+export async function getAllAdminRoles(
+  workspaceId: string
+): Promise<ApiResponse<AdminRoleDto[]>> {
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiGet<AdminRoleDto[]>(`${API_BASE}?${params.toString()}`);
 }
 
 /**
  * Get admin role by ID
+ * URL: GET /api/admin-roles/{id}?workspaceId={workspaceId}
+ * Permission: AdminRoles.view
  */
 export async function getAdminRoleById(
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<ApiResponse<AdminRoleDto>> {
-  return apiGet<AdminRoleDto>(`${API_BASE}/${id}`);
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiGet<AdminRoleDto>(`${API_BASE}/${id}?${params.toString()}`);
 }
 
 /**
  * Create a new admin role
- * Only SuperAdmin can create admin roles
+ * URL: POST /api/admin-roles?workspaceId={workspaceId}
+ * Permission: AdminRoles.create
  */
 export async function createAdminRole(
+  workspaceId: string,
   data: CreateAdminRoleRequestDto
 ): Promise<ApiResponse<AdminRoleDto>> {
-  return apiPost<AdminRoleDto>(API_BASE, data);
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiPost<AdminRoleDto>(`${API_BASE}?${params.toString()}`, data);
 }
 
 /**
  * Update an existing admin role
- * Only SuperAdmin can update admin roles
+ * URL: PUT /api/admin-roles/{id}?workspaceId={workspaceId}
+ * Permission: AdminRoles.update
  */
 export async function updateAdminRole(
   id: string,
+  workspaceId: string,
   data: UpdateAdminRoleRequestDto
 ): Promise<ApiResponse<AdminRoleDto>> {
-  return apiPut<AdminRoleDto>(`${API_BASE}/${id}`, data);
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiPut<AdminRoleDto>(`${API_BASE}/${id}?${params.toString()}`, data);
 }
 
 /**
  * Delete an admin role (soft delete)
- * Only SuperAdmin can delete admin roles
- * System roles cannot be deleted
+ * URL: DELETE /api/admin-roles/{id}?workspaceId={workspaceId}
+ * Permission: AdminRoles.delete
  */
 export async function deleteAdminRole(
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<ApiResponse<boolean>> {
-  return apiDelete<boolean>(`${API_BASE}/${id}`);
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiDelete<boolean>(`${API_BASE}/${id}?${params.toString()}`);
+}
+
+/**
+ * Assign permissions to an admin role
+ * URL: POST /api/admin-roles/{id}/permissions?workspaceId={workspaceId}
+ * Permission: AdminRoles.update
+ */
+export async function assignPermissionsToAdminRole(
+  id: string,
+  workspaceId: string,
+  permissions: Array<{ resourceId: string; permissionId: string }>
+): Promise<ApiResponse<AdminRoleDto>> {
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiPost<AdminRoleDto>(
+    `${API_BASE}/${id}/permissions?${params.toString()}`,
+    { permissions }
+  );
 }

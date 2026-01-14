@@ -606,6 +606,7 @@ export interface SwitchTenantRequestDto {
 
 export interface AdminRoleDto {
   adminRoleId: string;
+  workspaceRoleId?: string; // API may return workspaceRoleId instead
   roleName?: string | null;
   roleCode?: string | null;
   description?: string | null;
@@ -616,19 +617,25 @@ export interface AdminRoleDto {
   dateCreated?: string | null;
   dateModified?: string | null;
   modifiedBy?: string | null;
+  // Additional fields that may come from API
+  workspaceId?: string;
+  userWorkspaceId?: string;
+  roleDescription?: string | null;
+  isAdmin?: boolean;
+  permissions?: any[];
 }
 
 export interface CreateAdminRoleRequestDto {
   roleName?: string | null;
   roleCode?: string | null;
-  description?: string | null;
-  isSystemRole?: boolean;
+  roleDescription?: string | null;
+  isAdmin?: boolean;
 }
 
 export interface UpdateAdminRoleRequestDto {
   roleName?: string | null;
   roleCode?: string | null;
-  description?: string | null;
+  roleDescription?: string | null;
   isActive?: boolean;
 }
 

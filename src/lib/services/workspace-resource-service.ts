@@ -3,12 +3,7 @@
  * Only SuperAdmin users (email contains @rdlc.com) can perform update and delete operations
  */
 
-import {
-  apiGet,
-  apiPut,
-  apiDelete,
-  type ApiResponse,
-} from "@/lib/api-client";
+import { apiGet, apiPut, apiDelete, type ApiResponse } from "@/lib/api-client";
 import type {
   WorkspaceResourceTreeDto,
   UpdateWorkspaceResourceRequestDto,

@@ -179,7 +179,15 @@ export default function AdminResourcesPage() {
         resource.resourceId
       );
       if (result.success && result.data) {
-        setSelectedResource(result.data);
+        // Convert WorkspaceResourceTreeDto to ResourceTreeNode
+        const resourceNode: ResourceTreeNode = {
+          ...result.data,
+          expanded: false,
+          children: result.data.children
+            ? buildResourceTree(result.data.children)
+            : undefined,
+        };
+        setSelectedResource(resourceNode);
         setFormData({
           resourceName: result.data.resourceName || "",
           url: result.data.url || "",
@@ -508,8 +516,8 @@ export default function AdminResourcesPage() {
             ? `Are you sure you want to delete "${selectedResource.resourceName}"? This action cannot be undone. Resources with children cannot be deleted.`
             : ""
         }
-        confirmText="Delete"
-        cancelText="Cancel"
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
         onConfirm={handleSubmitDelete}
         isLoading={isSubmitting}
         variant="destructive"

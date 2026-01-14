@@ -10,5 +10,3 @@ export * from "./workspace-service";
 export * from "./admin-user-service";
 export * from "./admin-role-service";
 export * from "./workspace-resource-service";
-
-

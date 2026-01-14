@@ -49,6 +49,7 @@ import {
   DataTable,
   DataTableColumn,
   ConfirmDialog,
+  LoadingPage,
 } from "@/components/shared";
 import { User, UserWithFullName, UserStatus, UserInfo } from "@/types";
 import { formatDate, getInitials } from "@/lib/utils";
@@ -57,13 +58,14 @@ import { apiGetAuth } from "@/lib/api-client";
 import {
   getAdminUsers,
   getAdminUserById,
-  createAdminUser,
   createAdminUserWithRole,
   updateAdminUser,
   deleteAdminUser,
   activateAdminUser,
   deactivateAdminUser,
 } from "@/lib/services/admin-user-service";
+import { getAllAdminRoles } from "@/lib/services/admin-role-service";
+import { AdminRoleDto } from "@/types";
 
 const statusColors: Record<
   UserStatus,
@@ -81,7 +83,6 @@ export default function AdminUsersPage() {
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const [users, setUsers] = useState<UserWithFullName[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreateWithRoleOpen, setIsCreateWithRoleOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -101,26 +102,18 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
-    roleId: "",
-    selectedWorkspaceId: "",
-  });
-
   const [formDataWithRole, setFormDataWithRole] = useState({
     email: "",
-    password: "",
     firstName: "",
     lastName: "",
     phoneNumber: "",
-    roleId: "",
     roleCode: "",
+    roleId: "",
+    wcoId: "",
     selectedWorkspaceId: "",
   });
+  const [availableRoles, setAvailableRoles] = useState<AdminRoleDto[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 
   const [editFormData, setEditFormData] = useState({
     firstName: "",
@@ -251,50 +244,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleCreate = async () => {
-    const targetWorkspaceId = formData.selectedWorkspaceId || workspaceId;
-    
-    if (!targetWorkspaceId) {
-      toast.error("Please select a workspace");
-      return;
-    }
-
-    if (!formData.email || !formData.firstName || !formData.lastName || !formData.password) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await createAdminUser(
-        {
-          email: formData.email,
-          password: formData.password,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phoneNumber: formData.phoneNumber,
-          roleId: formData.roleId || undefined,
-        },
-        targetWorkspaceId
-      );
-
-      if (result.success && result.data) {
-        toast.success("User created successfully");
-        setIsCreateOpen(false);
-        resetForm();
-        loadUsers();
-      } else {
-        toast.error(result.error?.message || "Failed to create user");
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create user"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleCreateWithRole = async () => {
     const targetWorkspaceId = formDataWithRole.selectedWorkspaceId || workspaceId;
     
@@ -303,8 +252,14 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (!formDataWithRole.email || !formDataWithRole.firstName || !formDataWithRole.lastName || !formDataWithRole.password) {
-      toast.error("Please fill in all required fields");
+    if (!formDataWithRole.email || !formDataWithRole.firstName || !formDataWithRole.lastName || !formDataWithRole.roleCode || !formDataWithRole.roleId) {
+      toast.error("Please fill in all required fields, including selecting a role");
+      return;
+    }
+
+    // Validate wcoId for WCO_EMPLOYEE role
+    if (formDataWithRole.roleCode === "WCO_EMPLOYEE" && !formDataWithRole.wcoId) {
+      toast.error("WCO ID is required for WCO_EMPLOYEE role");
       return;
     }
 
@@ -312,17 +267,17 @@ export default function AdminUsersPage() {
     try {
       const result = await createAdminUserWithRole({
         email: formDataWithRole.email,
-        password: formDataWithRole.password,
         firstName: formDataWithRole.firstName,
         lastName: formDataWithRole.lastName,
-        phoneNumber: formDataWithRole.phoneNumber,
         workspaceId: targetWorkspaceId,
+        roleCode: formDataWithRole.roleCode,
         roleId: formDataWithRole.roleId || undefined,
-        roleCode: formDataWithRole.roleCode || undefined,
+        phoneNumber: formDataWithRole.phoneNumber || undefined,
+        wcoId: formDataWithRole.wcoId || undefined,
       });
 
       if (result.success && result.data) {
-        toast.success("User created with role successfully");
+        toast.success("User created with role successfully. Password has been sent via email.");
         setIsCreateWithRoleOpen(false);
         resetFormWithRole();
         loadUsers();
@@ -478,30 +433,75 @@ export default function AdminUsersPage() {
     setIsDeleteOpen(true);
   };
 
-  const resetForm = () => {
-    setFormData({
+  const resetFormWithRole = () => {
+    setFormDataWithRole({
       email: "",
-      password: "",
       firstName: "",
       lastName: "",
       phoneNumber: "",
+      roleCode: "",
       roleId: "",
+      wcoId: "",
       selectedWorkspaceId: workspaceId || "",
     });
   };
 
-  const resetFormWithRole = () => {
-    setFormDataWithRole({
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
-      phoneNumber: "",
-      roleId: "",
-      roleCode: "",
-      selectedWorkspaceId: workspaceId || "",
-    });
+  const loadRoles = async (targetWorkspaceId: string) => {
+    setIsLoadingRoles(true);
+    try {
+      const result = await getAllAdminRoles(targetWorkspaceId);
+      if (result.success && result.data) {
+        // Map the API response to handle both workspaceRoleId and adminRoleId
+        // The API returns workspaceRoleId, but we need adminRoleId for consistency
+        const mappedRoles = result.data.map((role: any) => ({
+          ...role,
+          // Use workspaceRoleId if available, otherwise use adminRoleId
+          adminRoleId: role.workspaceRoleId || role.adminRoleId,
+          // Also map roleDescription to description if needed
+          description: role.roleDescription || role.description,
+        }));
+        setAvailableRoles(mappedRoles);
+      } else {
+        toast.error(result.message || "Failed to load roles");
+        setAvailableRoles([]);
+      }
+    } catch (error) {
+      console.error("Error loading roles:", error);
+      toast.error("Failed to load roles");
+      setAvailableRoles([]);
+    } finally {
+      setIsLoadingRoles(false);
+    }
   };
+
+  const handleOpenCreateWithRoleDialog = async () => {
+    const targetWorkspaceId = workspaceId || userInfo?.adminDetails?.adminWorkspaces?.[0]?.workspaceId;
+    if (targetWorkspaceId) {
+      await loadRoles(targetWorkspaceId);
+      setFormDataWithRole({
+        ...formDataWithRole,
+        selectedWorkspaceId: targetWorkspaceId,
+      });
+    }
+    setIsCreateWithRoleOpen(true);
+  };
+
+  // Reload roles when workspace changes in the form
+  useEffect(() => {
+    if (isCreateWithRoleOpen && formDataWithRole.selectedWorkspaceId) {
+      const reloadRoles = async () => {
+        await loadRoles(formDataWithRole.selectedWorkspaceId);
+        // Clear role selection after roles are loaded to ensure fresh state
+        setFormDataWithRole((prev) => ({
+          ...prev,
+          roleId: "",
+          roleCode: "",
+          wcoId: "",
+        }));
+      };
+      reloadRoles();
+    }
+  }, [formDataWithRole.selectedWorkspaceId, isCreateWithRoleOpen]);
 
   const resetEditForm = () => {
     setEditFormData({
@@ -611,6 +611,13 @@ export default function AdminUsersPage() {
     currentWorkspace?.name ||
     "Selected Workspace";
 
+  // Check if we're still loading workspace info
+  const isCheckingWorkspace = !workspaceId && !userInfo;
+
+  if (isCheckingWorkspace) {
+    return <LoadingPage message="Loading workspace information..." />;
+  }
+
   if (!workspaceId) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -640,14 +647,10 @@ export default function AdminUsersPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => setIsCreateWithRoleOpen(true)}
+              onClick={handleOpenCreateWithRoleDialog}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add User with Role
-            </Button>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
             </Button>
           </div>
         }
@@ -757,119 +760,6 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
-
-      {/* Create Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
-            <DialogDescription>
-              Create a new user account in this workspace.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name *</Label>
-                <Input
-                  id="firstName"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name *</Label>
-                <Input
-                  id="lastName"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@example.com"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter password"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                placeholder="+234..."
-                value={formData.phoneNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, phoneNumber: e.target.value })
-                }
-              />
-            </div>
-            {userInfo?.adminDetails?.adminWorkspaces &&
-              userInfo.adminDetails.adminWorkspaces.length > 1 && (
-                <div className="space-y-2">
-                  <Label htmlFor="workspace">Workspace *</Label>
-                  <Select
-                    value={formData.selectedWorkspaceId || workspaceId || ""}
-                    onValueChange={(value) =>
-                      setFormData({
-                        ...formData,
-                        selectedWorkspaceId: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select workspace" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userInfo.adminDetails.adminWorkspaces.map((ws) => (
-                        <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
-                          {ws.workspaceName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreateOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} loading={isSubmitting}>
-              Create User
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -999,7 +889,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Add User with Role</DialogTitle>
             <DialogDescription>
-              Create a new user account and assign a role in this workspace.
+              Create a new user account and assign a role in this workspace. Password will be auto-generated and sent via email.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1049,25 +939,10 @@ export default function AdminUsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="withRole-password">Password *</Label>
-              <Input
-                id="withRole-password"
-                type="password"
-                placeholder="Enter password"
-                value={formDataWithRole.password}
-                onChange={(e) =>
-                  setFormDataWithRole({
-                    ...formDataWithRole,
-                    password: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="withRole-phone">Phone Number</Label>
               <Input
                 id="withRole-phone"
-                placeholder="+234..."
+                placeholder="+2341234567890"
                 value={formDataWithRole.phoneNumber}
                 onChange={(e) =>
                   setFormDataWithRole({
@@ -1105,36 +980,64 @@ export default function AdminUsersPage() {
                   </Select>
                 </div>
               )}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="withRole-roleId">Role ID</Label>
-                <Input
-                  id="withRole-roleId"
-                  placeholder="Role ID (UUID)"
-                  value={formDataWithRole.roleId}
-                  onChange={(e) =>
-                    setFormDataWithRole({
-                      ...formDataWithRole,
-                      roleId: e.target.value,
-                    })
+            <div className="space-y-2">
+              <Label htmlFor="withRole-role">Role *</Label>
+              <Select
+                key={`role-select-${formDataWithRole.selectedWorkspaceId || workspaceId}-${availableRoles.length}`}
+                value={formDataWithRole.roleId || ""}
+                onValueChange={(value) => {
+                  const selectedRole = availableRoles.find((r) => r.adminRoleId === value);
+                  if (selectedRole) {
+                    setFormDataWithRole((prev) => ({
+                      ...prev,
+                      roleId: selectedRole.adminRoleId,
+                      roleCode: selectedRole.roleCode || "",
+                      // Clear wcoId if role changes from WCO_EMPLOYEE
+                      wcoId: selectedRole.roleCode !== "WCO_EMPLOYEE" ? "" : prev.wcoId,
+                    }));
+                  } else {
+                    // If role not found, clear the selection
+                    setFormDataWithRole((prev) => ({
+                      ...prev,
+                      roleId: "",
+                      roleCode: "",
+                      wcoId: "",
+                    }));
                   }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="withRole-roleCode">Role Code</Label>
-                <Input
-                  id="withRole-roleCode"
-                  placeholder="e.g., ADMIN, USER"
-                  value={formDataWithRole.roleCode}
-                  onChange={(e) =>
-                    setFormDataWithRole({
-                      ...formDataWithRole,
-                      roleCode: e.target.value,
-                    })
-                  }
-                />
-              </div>
+                }}
+                disabled={isLoadingRoles || availableRoles.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={isLoadingRoles ? "Loading roles..." : availableRoles.length === 0 ? "No roles available" : "Select a role"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role.adminRoleId} value={role.adminRoleId}>
+                      {role.roleName || role.roleCode || role.adminRoleId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            {formDataWithRole.roleCode === "WCO_EMPLOYEE" && (
+              <div className="space-y-2">
+                <Label htmlFor="withRole-wcoId">WCO ID *</Label>
+                <Input
+                  id="withRole-wcoId"
+                  placeholder="WCO Company ID (UUID)"
+                  value={formDataWithRole.wcoId}
+                  onChange={(e) =>
+                    setFormDataWithRole({
+                      ...formDataWithRole,
+                      wcoId: e.target.value,
+                    })
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  Required for WCO_EMPLOYEE role. The WCO company must exist and be active.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button

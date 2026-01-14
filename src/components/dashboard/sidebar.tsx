@@ -310,35 +310,109 @@ export function Sidebar() {
 
   const loadMenu = async () => {
     try {
-      const result = await apiGet<
-        WorkspaceMenu[] | PaginatedResponse<WorkspaceMenu>
-      >(`/api/menu`);
-      if (result.success && result.data) {
-        // Handle both direct array and PaginatedResponse formats
-        const menuData = Array.isArray(result.data)
-          ? result.data
-          : result.data.items || [];
+      // Load both menu and all workspaces to ensure we show all workspaces
+      const [menuResult, workspacesResult] = await Promise.all([
+        apiGet<WorkspaceMenu[] | PaginatedResponse<WorkspaceMenu>>(`/api/menu`),
+        apiGet<PaginatedResponse<Workspace>>(
+          `/api/workspaces?includeInactive=true`
+        ),
+      ]);
 
-        // Store the full menu data
+      // Handle menu data
+      if (menuResult.success && menuResult.data) {
+        const menuData = Array.isArray(menuResult.data)
+          ? menuResult.data
+          : menuResult.data.items || [];
         setWorkspaceMenus(menuData);
-
-        // Also update the workspace store with workspaces from menu
-        const workspacesFromMenu: Workspace[] = menuData.map((menu) => ({
-          workspaceId: menu.workspaceId,
-          name: menu.workspaceName,
-          description: "",
-          workspaceUrl: menu.workspaceUrl,
-          isActive: true,
-          isDeleted: false,
-          color: undefined,
-          createdBy: "",
-          createdAt: "",
-          updatedAt: "",
-        }));
-        setWorkspaces(workspacesFromMenu);
       } else {
         setWorkspaceMenus([]);
-        setWorkspaces([]);
+      }
+
+      // Handle all workspaces - merge with menu data to ensure all workspaces are shown
+      if (workspacesResult.success && workspacesResult.data) {
+        const allWorkspaces = Array.isArray(workspacesResult.data)
+          ? workspacesResult.data
+          : workspacesResult.data.items || [];
+
+        // Filter out deleted workspaces
+        const validWorkspaces = allWorkspaces.filter((ws) => !ws.isDeleted);
+
+        // Create a map of workspaceId to menu data for quick lookup
+        const menuMap: Record<string, WorkspaceMenu> = {};
+        if (menuResult.success && menuResult.data) {
+          const menuData = Array.isArray(menuResult.data)
+            ? menuResult.data
+            : (menuResult.data as PaginatedResponse<WorkspaceMenu>).items || [];
+          menuData.forEach((menu) => {
+            menuMap[menu.workspaceId] = menu;
+          });
+        }
+
+        // Merge workspaces with menu data - workspaces with menu get menu data, others still show
+        const mergedWorkspaces: Workspace[] = validWorkspaces.map((ws) => {
+          const menuData = menuMap[ws.workspaceId];
+          return {
+            workspaceId: ws.workspaceId,
+            name: ws.name,
+            description: ws.description || "",
+            workspaceUrl: menuData?.workspaceUrl || ws.workspaceUrl,
+            isActive: ws.isActive,
+            isDeleted: ws.isDeleted,
+            color: ws.color,
+            createdBy: ws.createdBy || "",
+            createdAt: ws.createdAt || "",
+            updatedAt: ws.updatedAt || "",
+          };
+        });
+
+        setWorkspaces(mergedWorkspaces);
+
+        // Also ensure workspaceMenus includes all workspaces (even without menu items)
+        // Create menu entries for workspaces without menu data
+        const existingMenuWorkspaceIds = new Set(
+          Array.isArray(menuResult.data)
+            ? menuResult.data.map((m) => m.workspaceId)
+            : menuResult.data?.items?.map((m) => m.workspaceId) || []
+        );
+
+        const workspacesWithoutMenu = validWorkspaces
+          .filter((ws) => !existingMenuWorkspaceIds.has(ws.workspaceId))
+          .map((ws) => ({
+            workspaceId: ws.workspaceId,
+            workspaceName: ws.name,
+            workspaceCode: "",
+            workspaceUrl: ws.workspaceUrl,
+            resources: [],
+          }));
+
+        if (workspacesWithoutMenu.length > 0) {
+          const currentMenus = Array.isArray(menuResult.data)
+            ? menuResult.data
+            : menuResult.data?.items || [];
+          setWorkspaceMenus([...currentMenus, ...workspacesWithoutMenu]);
+        }
+      } else {
+        // Fallback: use workspaces from menu only
+        if (menuResult.success && menuResult.data) {
+          const menuData = Array.isArray(menuResult.data)
+            ? menuResult.data
+            : menuResult.data.items || [];
+          const workspacesFromMenu: Workspace[] = menuData.map((menu) => ({
+            workspaceId: menu.workspaceId,
+            name: menu.workspaceName,
+            description: "",
+            workspaceUrl: menu.workspaceUrl,
+            isActive: true,
+            isDeleted: false,
+            color: undefined,
+            createdBy: "",
+            createdAt: "",
+            updatedAt: "",
+          }));
+          setWorkspaces(workspacesFromMenu);
+        } else {
+          setWorkspaces([]);
+        }
       }
     } catch (error) {
       console.error("Failed to load menu", error);

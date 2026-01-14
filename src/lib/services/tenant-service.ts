@@ -140,5 +140,3 @@ export async function switchTenant(
     throw error;
   }
 }
-
-

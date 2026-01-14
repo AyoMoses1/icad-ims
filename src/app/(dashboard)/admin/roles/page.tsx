@@ -38,11 +38,13 @@ import {
   DataTable,
   DataTableColumn,
   ConfirmDialog,
+  LoadingPage,
 } from "@/components/shared";
 import { AdminRoleDto } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { apiGetAuth } from "@/lib/api-client";
 import type { UserInfo } from "@/types";
+import { useWorkspaceStore } from "@/store";
 import {
   getAllAdminRoles,
   getAdminRoleById,
@@ -52,6 +54,7 @@ import {
 } from "@/lib/services/admin-role-service";
 
 export default function AdminRolesPage() {
+  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const [roles, setRoles] = useState<AdminRoleDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -60,44 +63,22 @@ export default function AdminRolesPage() {
   const [selectedRole, setSelectedRole] = useState<AdminRoleDto | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [isCheckingSuperAdmin, setIsCheckingSuperAdmin] = useState(true);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     roleName: "",
     roleCode: "",
-    description: "",
-    isSystemRole: false,
+    roleDescription: "",
   });
 
-  // Check if user is SuperAdmin
-  useEffect(() => {
-    const checkSuperAdmin = async () => {
-      setIsCheckingSuperAdmin(true);
-      try {
-        const info = await apiGetAuth<UserInfo>("/connect/userinfo");
-        setUserInfo(info);
-        // SuperAdmin check: email contains @rdlc.com
-        const isSuper = info.email?.includes("@rdlc.com") || false;
-        setIsSuperAdmin(isSuper);
-      } catch (error) {
-        console.error("Failed to fetch user info:", error);
-      } finally {
-        setIsCheckingSuperAdmin(false);
-      }
-    };
-
-    checkSuperAdmin();
-  }, []);
-
-  useEffect(() => {
-    loadRoles();
-  }, []);
-
   const loadRoles = async () => {
+    if (!workspaceId) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const result = await getAllAdminRoles();
+      const result = await getAllAdminRoles(workspaceId);
 
       if (result.success && result.data) {
         setRoles(result.data);
@@ -107,39 +88,104 @@ export default function AdminRolesPage() {
     } catch (error) {
       console.error("Error loading roles:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to load admin roles"
+        error instanceof Error ? error.message : "Failed to load admin roles"
       );
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Fetch user info and determine workspace ID
+  useEffect(() => {
+    const fetchUserInfoAndWorkspace = async () => {
+      try {
+        const info = await apiGetAuth<UserInfo>("/connect/userinfo");
+        setUserInfo(info);
+
+        // Determine workspace ID to use
+        let targetWorkspaceId: string | null = null;
+
+        // First, try to use current workspace if available
+        if (currentWorkspace?.workspaceId) {
+          targetWorkspaceId = currentWorkspace.workspaceId;
+        } else if (
+          info.adminDetails?.adminWorkspaces &&
+          info.adminDetails.adminWorkspaces.length > 0
+        ) {
+          // If no current workspace, use the first admin workspace
+          targetWorkspaceId = info.adminDetails.adminWorkspaces[0].workspaceId;
+
+          // Optionally set it in the workspace store
+          const { workspaces } = useWorkspaceStore.getState();
+          const adminWorkspace = workspaces.find(
+            (w) => w.workspaceId === targetWorkspaceId
+          );
+          if (adminWorkspace) {
+            setCurrentWorkspace(adminWorkspace);
+          } else {
+            // Create a workspace object from admin workspace info
+            const adminWsInfo = info.adminDetails.adminWorkspaces[0];
+            const newWorkspace = {
+              workspaceId: adminWsInfo.workspaceId,
+              name: adminWsInfo.workspaceName,
+              description: "",
+              isActive: true,
+              isDeleted: false,
+              color: undefined,
+              createdBy: "",
+              createdAt: "",
+              updatedAt: "",
+            };
+            setCurrentWorkspace(newWorkspace);
+          }
+        }
+
+        if (targetWorkspaceId) {
+          setWorkspaceId(targetWorkspaceId);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user info:", error);
+        toast.error("Failed to load user information");
+      }
+    };
+
+    fetchUserInfoAndWorkspace();
+  }, [currentWorkspace, setCurrentWorkspace]);
+
+  useEffect(() => {
+    if (workspaceId) {
+      loadRoles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
+
   const handleCreate = () => {
-    if (!isSuperAdmin) {
-      toast.error("Only SuperAdmin users can create admin roles");
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
       return;
     }
     setFormData({
       roleName: "",
       roleCode: "",
-      description: "",
-      isSystemRole: false,
+      roleDescription: "",
     });
     setIsCreateOpen(true);
   };
 
   const handleEdit = async (role: AdminRoleDto) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
     try {
-      const result = await getAdminRoleById(role.adminRoleId);
+      const result = await getAdminRoleById(role.adminRoleId, workspaceId);
       if (result.success && result.data) {
         setSelectedRole(result.data);
         setFormData({
           roleName: result.data.roleName || "",
           roleCode: result.data.roleCode || "",
-          description: result.data.description || "",
-          isSystemRole: result.data.isSystemRole,
+          roleDescription:
+            result.data.description || result.data.roleDescription || "",
         });
         setIsEditOpen(true);
       }
@@ -154,6 +200,11 @@ export default function AdminRolesPage() {
   };
 
   const handleSubmitCreate = async () => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
+
     if (!formData.roleName.trim()) {
       toast.error("Role name is required");
       return;
@@ -161,11 +212,10 @@ export default function AdminRolesPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await createAdminRole({
+      const result = await createAdminRole(workspaceId, {
         roleName: formData.roleName,
         roleCode: formData.roleCode || null,
-        description: formData.description || null,
-        isSystemRole: formData.isSystemRole,
+        roleDescription: formData.roleDescription || null,
       });
 
       if (result.success) {
@@ -178,9 +228,7 @@ export default function AdminRolesPage() {
     } catch (error) {
       console.error("Error creating role:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to create admin role"
+        error instanceof Error ? error.message : "Failed to create admin role"
       );
     } finally {
       setIsSubmitting(false);
@@ -188,7 +236,7 @@ export default function AdminRolesPage() {
   };
 
   const handleSubmitEdit = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || !workspaceId) return;
 
     if (!formData.roleName.trim()) {
       toast.error("Role name is required");
@@ -197,12 +245,15 @@ export default function AdminRolesPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await updateAdminRole(selectedRole.adminRoleId, {
-        roleName: formData.roleName,
-        roleCode: formData.roleCode || null,
-        description: formData.description || null,
-        isActive: undefined, // Can be updated separately if needed
-      });
+      const result = await updateAdminRole(
+        selectedRole.adminRoleId,
+        workspaceId,
+        {
+          roleName: formData.roleName,
+          roleCode: formData.roleCode || null,
+          roleDescription: formData.roleDescription || null,
+        }
+      );
 
       if (result.success) {
         toast.success("Admin role updated successfully");
@@ -215,9 +266,7 @@ export default function AdminRolesPage() {
     } catch (error) {
       console.error("Error updating role:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to update admin role"
+        error instanceof Error ? error.message : "Failed to update admin role"
       );
     } finally {
       setIsSubmitting(false);
@@ -225,11 +274,14 @@ export default function AdminRolesPage() {
   };
 
   const handleSubmitDelete = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || !workspaceId) return;
 
     setIsSubmitting(true);
     try {
-      const result = await deleteAdminRole(selectedRole.adminRoleId);
+      const result = await deleteAdminRole(
+        selectedRole.adminRoleId,
+        workspaceId
+      );
 
       if (result.success) {
         toast.success("Admin role deleted successfully");
@@ -242,9 +294,7 @@ export default function AdminRolesPage() {
     } catch (error) {
       console.error("Error deleting role:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete admin role"
+        error instanceof Error ? error.message : "Failed to delete admin role"
       );
     } finally {
       setIsSubmitting(false);
@@ -268,9 +318,7 @@ export default function AdminRolesPage() {
       header: "Role Code",
       accessorKey: "roleCode",
       cell: (row) => (
-        <span className="text-muted-foreground">
-          {row.roleCode || "—"}
-        </span>
+        <span className="text-muted-foreground">{row.roleCode || "—"}</span>
       ),
     },
     {
@@ -334,47 +382,61 @@ export default function AdminRolesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isSuperAdmin && (
-              <>
-                <DropdownMenuItem onClick={() => handleEdit(row)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleDelete(row)}
-                  disabled={row.isSystemRole}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-            {!isSuperAdmin && (
-              <DropdownMenuItem disabled>
-                <span className="text-muted-foreground text-sm">
-                  SuperAdmin only
-                </span>
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem onClick={() => handleEdit(row)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => handleDelete(row)}
+              disabled={row.isSystemRole}
+              className="text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
     },
   ];
 
+  // Get workspace name from userInfo or currentWorkspace
+  const workspaceName =
+    userInfo?.adminDetails?.adminWorkspaces?.find(
+      (ws) => ws.workspaceId === workspaceId
+    )?.workspaceName ||
+    currentWorkspace?.name ||
+    "Selected Workspace";
+
+  // Check if we're still loading workspace info
+  const isCheckingWorkspace = !workspaceId && !userInfo;
+
+  if (isCheckingWorkspace) {
+    return <LoadingPage message="Loading workspace information..." />;
+  }
+
+  if (!workspaceId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg font-medium">No workspace available</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            You need admin access to at least one workspace to manage admin
+            roles.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Admin Roles"
-        description="Manage admin roles and permissions. Only SuperAdmin users can create, update, or delete roles."
+        description={`Manage admin roles and permissions for ${workspaceName}.`}
         actions={
-          <Button 
-            onClick={handleCreate}
-            disabled={isCheckingSuperAdmin || !isSuperAdmin}
-            title={!isSuperAdmin && !isCheckingSuperAdmin ? "Only SuperAdmin users can create roles" : ""}
-          >
+          <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Create Role
           </Button>
@@ -423,31 +485,16 @@ export default function AdminRolesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="roleDescription">Description</Label>
               <Textarea
-                id="description"
-                value={formData.description}
+                id="roleDescription"
+                value={formData.roleDescription}
                 onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
+                  setFormData({ ...formData, roleDescription: e.target.value })
                 }
                 placeholder="Describe the role's purpose and permissions"
                 rows={3}
               />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="isSystemRole"
-                checked={formData.isSystemRole}
-                onCheckedChange={(checked) =>
-                  setFormData({
-                    ...formData,
-                    isSystemRole: checked === true,
-                  })
-                }
-              />
-              <Label htmlFor="isSystemRole" className="cursor-pointer">
-                System Role (cannot be deleted)
-              </Label>
             </div>
           </div>
           <DialogFooter>
@@ -500,12 +547,12 @@ export default function AdminRolesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-roleDescription">Description</Label>
               <Textarea
-                id="edit-description"
-                value={formData.description}
+                id="edit-roleDescription"
+                value={formData.roleDescription}
                 onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
+                  setFormData({ ...formData, roleDescription: e.target.value })
                 }
                 placeholder="Describe the role's purpose and permissions"
                 rows={3}
@@ -545,8 +592,8 @@ export default function AdminRolesPage() {
             ? `Are you sure you want to delete "${selectedRole.roleName}"? This action cannot be undone.`
             : ""
         }
-        confirmText="Delete"
-        cancelText="Cancel"
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
         onConfirm={handleSubmitDelete}
         isLoading={isSubmitting}
         variant="destructive"

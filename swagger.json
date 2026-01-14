@@ -10,23 +10,32 @@
         "tags": [
           "AdminRole"
         ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoIEnumerableApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoIEnumerableApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoIEnumerableApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoIEnumerableApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoIEnumerableApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoIEnumerableApiResponse"
                 }
               }
             }
@@ -37,21 +46,30 @@
         "tags": [
           "AdminRole"
         ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             }
           }
@@ -62,17 +80,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               }
             }
@@ -87,6 +105,13 @@
         ],
         "parameters": [
           {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -102,17 +127,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               }
             }
@@ -124,6 +149,13 @@
           "AdminRole"
         ],
         "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -138,17 +170,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateAdminRoleRequestDto"
+                "$ref": "#/components/schemas/CreateWorkspaceRoleRequestDto"
               }
             }
           }
@@ -159,17 +191,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminRoleDtoApiResponse"
+                  "$ref": "#/components/schemas/WorkspaceRoleDtoApiResponse"
                 }
               }
             }
@@ -182,6 +214,13 @@
         ],
         "parameters": [
           {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -191,6 +230,72 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BooleanApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BooleanApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BooleanApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin-roles/{id}/permissions": {
+      "post": {
+        "tags": [
+          "AdminRole"
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPermissionsToRoleRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPermissionsToRoleRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPermissionsToRoleRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -3284,123 +3389,6 @@
         },
         "additionalProperties": false
       },
-      "AdminRoleDto": {
-        "type": "object",
-        "properties": {
-          "adminRoleId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "roleName": {
-            "type": "string",
-            "nullable": true
-          },
-          "roleCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "isSystemRole": {
-            "type": "boolean"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "isDeleted": {
-            "type": "boolean"
-          },
-          "createdBy": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "dateCreated": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "dateModified": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "modifiedBy": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "AdminRoleDtoApiResponse": {
-        "type": "object",
-        "properties": {
-          "apiVersion": {
-            "type": "string",
-            "nullable": true
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "code": {
-            "type": "string",
-            "nullable": true
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "requestId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/AdminRoleDto"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          }
-        },
-        "additionalProperties": false
-      },
-      "AdminRoleDtoIEnumerableApiResponse": {
-        "type": "object",
-        "properties": {
-          "apiVersion": {
-            "type": "string",
-            "nullable": true
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "code": {
-            "type": "string",
-            "nullable": true
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "requestId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminRoleDto"
-            },
-            "nullable": true
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          }
-        },
-        "additionalProperties": false
-      },
       "ApiError": {
         "type": "object",
         "properties": {
@@ -3724,27 +3712,6 @@
         },
         "additionalProperties": false
       },
-      "CreateAdminRoleRequestDto": {
-        "type": "object",
-        "properties": {
-          "roleName": {
-            "type": "string",
-            "nullable": true
-          },
-          "roleCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "isSystemRole": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
       "CreateInvitationRequestDto": {
         "required": [
           "email"
@@ -3869,6 +3836,11 @@
           "phoneNumber": {
             "type": "string",
             "nullable": true
+          },
+          "wcoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -3954,6 +3926,9 @@
             "minLength": 0,
             "type": "string",
             "nullable": true
+          },
+          "isAdmin": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -4737,28 +4712,6 @@
           },
           "scope": {
             "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "UpdateAdminRoleRequestDto": {
-        "type": "object",
-        "properties": {
-          "roleName": {
-            "type": "string",
-            "nullable": true
-          },
-          "roleCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "isActive": {
-            "type": "boolean",
             "nullable": true
           }
         },
@@ -5622,6 +5575,9 @@
             "nullable": true
           },
           "isSystemRole": {
+            "type": "boolean"
+          },
+          "isAdmin": {
             "type": "boolean"
           },
           "permissions": {

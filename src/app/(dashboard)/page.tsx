@@ -19,7 +19,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchWorkspacesWithUrls = async () => {
       try {
-        // Fetch workspaces from API to get workspaceUrl
+        // Fetch workspaces from API to get all workspaces
         const response = await getWorkspaces();
 
         if (response.success && response.data) {
@@ -27,24 +27,16 @@ export default function DashboardPage() {
             ? response.data
             : response.data.items || [];
 
-          // Create a map of workspaceId to workspaceUrl from API
-          const workspaceUrlMap = new Map<string, string>();
-          apiWorkspaces.forEach((ws: Workspace) => {
-            if (ws.workspaceUrl) {
-              workspaceUrlMap.set(ws.workspaceId, ws.workspaceUrl);
-            }
-          });
+          // Filter out deleted workspaces and use all workspaces from API
+          const validWorkspaces = apiWorkspaces.filter(
+            (ws: Workspace) => !ws.isDeleted
+          );
 
-          // Merge workspaceUrl from API with workspaces from store
-          const mergedWorkspaces = storeWorkspaces.map((storeWs) => {
-            const apiUrl = workspaceUrlMap.get(storeWs.workspaceId);
-            return {
-              ...storeWs,
-              workspaceUrl: apiUrl || storeWs.workspaceUrl,
-            };
-          });
+          setWorkspacesWithUrls(validWorkspaces);
 
-          setWorkspacesWithUrls(mergedWorkspaces);
+          // Also update the store with all workspaces
+          const { setWorkspaces } = useWorkspaceStore.getState();
+          setWorkspaces(validWorkspaces);
         } else {
           // Fallback to store workspaces if API call fails
           setWorkspacesWithUrls(storeWorkspaces);
@@ -58,13 +50,9 @@ export default function DashboardPage() {
       }
     };
 
-    if (storeWorkspaces.length > 0) {
-      fetchWorkspacesWithUrls();
-    } else {
-      setIsLoading(false);
-      setWorkspacesWithUrls(storeWorkspaces);
-    }
-  }, [storeWorkspaces]);
+    // Always fetch from API to get all workspaces
+    fetchWorkspacesWithUrls();
+  }, []);
 
   /**
    * Gets application URL for workspace
