@@ -50,11 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, ConfirmDialog } from "@/components/shared";
 import { useWorkspaceStore } from "@/store";
-import {
-  Workspace,
-  WorkspaceResource,
-  PaginatedResponse,
-} from "@/types";
+import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 
@@ -76,9 +72,9 @@ export default function AdminWorkspacesPage() {
   const [isResourcesOpen, setIsResourcesOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">(
-    "all"
-  );
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [resourcesTab, setResourcesTab] = useState<"list" | "add">("list");
 
   const [formData, setFormData] = useState({
@@ -383,7 +379,10 @@ export default function AdminWorkspacesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select value={activeFilter} onValueChange={(v: any) => setActiveFilter(v)}>
+        <Select
+          value={activeFilter}
+          onValueChange={(v: any) => setActiveFilter(v)}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -427,7 +426,9 @@ export default function AdminWorkspacesPage() {
             <Card>
               <CardContent className="p-12 text-center">
                 <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No workspaces found</h3>
+                <h3 className="text-lg font-medium mb-2">
+                  No workspaces found
+                </h3>
                 <p className="text-muted-foreground mb-4">
                   {searchQuery || activeFilter !== "all"
                     ? "Try adjusting your search or filters"
@@ -464,7 +465,9 @@ export default function AdminWorkspacesPage() {
                             {workspace.name}
                           </h3>
                           <Badge
-                            variant={workspace.isActive ? "default" : "secondary"}
+                            variant={
+                              workspace.isActive ? "default" : "secondary"
+                            }
                           >
                             {workspace.isActive ? "Active" : "Inactive"}
                           </Badge>
@@ -499,7 +502,9 @@ export default function AdminWorkspacesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEditDialog(workspace)}>
+                        <DropdownMenuItem
+                          onClick={() => openEditDialog(workspace)}
+                        >
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
@@ -510,7 +515,9 @@ export default function AdminWorkspacesPage() {
                           Manage Resources
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
+                          onClick={() =>
+                            handleSwitchWorkspace(workspace.workspaceId)
+                          }
                         >
                           <ArrowRight className="mr-2 h-4 w-4" />
                           Switch to Workspace
@@ -753,12 +760,19 @@ export default function AdminWorkspacesPage() {
               Add and manage resources for this workspace
             </DialogDescription>
           </DialogHeader>
-          <Tabs value={resourcesTab} onValueChange={(v) => setResourcesTab(v as "list" | "add")} className="w-full">
+          <Tabs
+            value={resourcesTab}
+            onValueChange={(v) => setResourcesTab(v as "list" | "add")}
+            className="w-full"
+          >
             <TabsList>
               <TabsTrigger value="list">Resources</TabsTrigger>
               <TabsTrigger value="add">Add Resource</TabsTrigger>
             </TabsList>
-            <TabsContent value="list" className="space-y-4 max-h-[400px] overflow-y-auto">
+            <TabsContent
+              value="list"
+              className="space-y-4 max-h-[400px] overflow-y-auto"
+            >
               {workspaceResources.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />

@@ -63,6 +63,7 @@ import {
   deleteAdminUser,
   activateAdminUser,
   deactivateAdminUser,
+  type WorkspaceRoleAssignment,
 } from "@/lib/services/admin-user-service";
 import { getAllAdminRoles } from "@/lib/services/admin-role-service";
 import { AdminRoleDto } from "@/types";
@@ -107,12 +108,16 @@ export default function AdminUsersPage() {
     firstName: "",
     lastName: "",
     phoneNumber: "",
-    roleCode: "",
-    roleId: "",
     wcoId: "",
-    selectedWorkspaceId: "",
+    workspaceRoles: [] as Array<{
+      workspaceId: string;
+      roleIds: string[];
+      availableRoles: AdminRoleDto[];
+    }>,
   });
-  const [availableRoles, setAvailableRoles] = useState<AdminRoleDto[]>([]);
+  const [workspaceRolesMap, setWorkspaceRolesMap] = useState<
+    Record<string, AdminRoleDto[]>
+  >({});
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 
   const [editFormData, setEditFormData] = useState({
@@ -138,10 +143,13 @@ export default function AdminUsersPage() {
         // First, try to use current workspace if available
         if (currentWorkspace?.workspaceId) {
           targetWorkspaceId = currentWorkspace.workspaceId;
-        } else if (info.adminDetails?.adminWorkspaces && info.adminDetails.adminWorkspaces.length > 0) {
+        } else if (
+          info.adminDetails?.adminWorkspaces &&
+          info.adminDetails.adminWorkspaces.length > 0
+        ) {
           // If no current workspace, use the first admin workspace
           targetWorkspaceId = info.adminDetails.adminWorkspaces[0].workspaceId;
-          
+
           // Optionally set it in the workspace store
           const { workspaces } = useWorkspaceStore.getState();
           const adminWorkspace = workspaces.find(
@@ -170,7 +178,9 @@ export default function AdminUsersPage() {
         if (targetWorkspaceId) {
           setWorkspaceId(targetWorkspaceId);
         } else {
-          toast.error("No admin workspace available. You need admin access to at least one workspace.");
+          toast.error(
+            "No admin workspace available. You need admin access to at least one workspace."
+          );
         }
       } catch (error) {
         console.error("Failed to fetch user info:", error);
@@ -222,7 +232,8 @@ export default function AdminUsersPage() {
 
         const usersWithFullName: UserWithFullName[] = usersData.map((user) => ({
           ...user,
-          fullName: `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim(),
+          fullName:
+            `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim(),
         }));
 
         setUsers(usersWithFullName);
@@ -245,39 +256,70 @@ export default function AdminUsersPage() {
   };
 
   const handleCreateWithRole = async () => {
-    const targetWorkspaceId = formDataWithRole.selectedWorkspaceId || workspaceId;
-    
-    if (!targetWorkspaceId) {
-      toast.error("Please select a workspace");
+    if (
+      !formDataWithRole.email ||
+      !formDataWithRole.firstName ||
+      !formDataWithRole.lastName
+    ) {
+      toast.error(
+        "Please fill in all required fields (email, first name, last name)"
+      );
       return;
     }
 
-    if (!formDataWithRole.email || !formDataWithRole.firstName || !formDataWithRole.lastName || !formDataWithRole.roleCode || !formDataWithRole.roleId) {
-      toast.error("Please fill in all required fields, including selecting a role");
+    if (formDataWithRole.workspaceRoles.length === 0) {
+      toast.error("Please add at least one workspace with roles");
       return;
     }
 
-    // Validate wcoId for WCO_EMPLOYEE role
-    if (formDataWithRole.roleCode === "WCO_EMPLOYEE" && !formDataWithRole.wcoId) {
-      toast.error("WCO ID is required for WCO_EMPLOYEE role");
+    // Validate each workspace-role assignment
+    for (const wr of formDataWithRole.workspaceRoles) {
+      if (!wr.workspaceId) {
+        toast.error("Please select a workspace for all assignments");
+        return;
+      }
+      if (!wr.roleIds || wr.roleIds.length === 0) {
+        toast.error("Please select at least one role for each workspace");
+        return;
+      }
+    }
+
+    // Check if WCO_EMPLOYEE role is assigned and validate wcoId
+    const hasWcoRole = formDataWithRole.workspaceRoles.some((wr) => {
+      const roles = workspaceRolesMap[wr.workspaceId] || [];
+      return wr.roleIds.some((roleId) => {
+        const role = roles.find((r) => r.adminRoleId === roleId);
+        return role?.roleCode === "WCO_EMPLOYEE";
+      });
+    });
+
+    if (hasWcoRole && !formDataWithRole.wcoId) {
+      toast.error("WCO ID is required when assigning WCO_EMPLOYEE role");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Convert form data to API format
+      const workspaceRoles: WorkspaceRoleAssignment[] =
+        formDataWithRole.workspaceRoles.map((wr) => ({
+          workspaceId: wr.workspaceId,
+          roleIds: wr.roleIds,
+        }));
+
       const result = await createAdminUserWithRole({
         email: formDataWithRole.email,
         firstName: formDataWithRole.firstName,
         lastName: formDataWithRole.lastName,
-        workspaceId: targetWorkspaceId,
-        roleCode: formDataWithRole.roleCode,
-        roleId: formDataWithRole.roleId || undefined,
         phoneNumber: formDataWithRole.phoneNumber || undefined,
+        workspaceRoles,
         wcoId: formDataWithRole.wcoId || undefined,
       });
 
       if (result.success && result.data) {
-        toast.success("User created with role successfully. Password has been sent via email.");
+        toast.success(
+          "User created with roles successfully. Password has been sent via email."
+        );
         setIsCreateWithRoleOpen(false);
         resetFormWithRole();
         loadUsers();
@@ -348,10 +390,7 @@ export default function AdminUsersPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await deleteAdminUser(
-        selectedUser.id,
-        workspaceId
-      );
+      const result = await deleteAdminUser(selectedUser.id, workspaceId);
 
       if (result.success) {
         toast.success("User deleted successfully");
@@ -439,69 +478,122 @@ export default function AdminUsersPage() {
       firstName: "",
       lastName: "",
       phoneNumber: "",
-      roleCode: "",
-      roleId: "",
       wcoId: "",
-      selectedWorkspaceId: workspaceId || "",
+      workspaceRoles: [],
     });
+    setWorkspaceRolesMap({});
   };
 
   const loadRoles = async (targetWorkspaceId: string) => {
+    if (workspaceRolesMap[targetWorkspaceId]) {
+      return; // Already loaded
+    }
+
     setIsLoadingRoles(true);
     try {
       const result = await getAllAdminRoles(targetWorkspaceId);
       if (result.success && result.data) {
         // Map the API response to handle both workspaceRoleId and adminRoleId
-        // The API returns workspaceRoleId, but we need adminRoleId for consistency
         const mappedRoles = result.data.map((role: any) => ({
           ...role,
-          // Use workspaceRoleId if available, otherwise use adminRoleId
           adminRoleId: role.workspaceRoleId || role.adminRoleId,
-          // Also map roleDescription to description if needed
           description: role.roleDescription || role.description,
         }));
-        setAvailableRoles(mappedRoles);
+        setWorkspaceRolesMap((prev) => ({
+          ...prev,
+          [targetWorkspaceId]: mappedRoles,
+        }));
       } else {
         toast.error(result.message || "Failed to load roles");
-        setAvailableRoles([]);
+        setWorkspaceRolesMap((prev) => ({
+          ...prev,
+          [targetWorkspaceId]: [],
+        }));
       }
     } catch (error) {
       console.error("Error loading roles:", error);
       toast.error("Failed to load roles");
-      setAvailableRoles([]);
+      setWorkspaceRolesMap((prev) => ({
+        ...prev,
+        [targetWorkspaceId]: [],
+      }));
     } finally {
       setIsLoadingRoles(false);
     }
   };
 
   const handleOpenCreateWithRoleDialog = async () => {
-    const targetWorkspaceId = workspaceId || userInfo?.adminDetails?.adminWorkspaces?.[0]?.workspaceId;
-    if (targetWorkspaceId) {
-      await loadRoles(targetWorkspaceId);
-      setFormDataWithRole({
-        ...formDataWithRole,
-        selectedWorkspaceId: targetWorkspaceId,
-      });
+    // Load roles for all available workspaces
+    const workspaces =
+      userInfo?.adminDetails?.adminWorkspaces || currentWorkspace
+        ? [
+            {
+              workspaceId: currentWorkspace!.workspaceId,
+              workspaceName: currentWorkspace!.name,
+            },
+          ]
+        : [];
+
+    for (const ws of workspaces) {
+      await loadRoles(ws.workspaceId);
     }
+
     setIsCreateWithRoleOpen(true);
   };
 
-  // Reload roles when workspace changes in the form
-  useEffect(() => {
-    if (isCreateWithRoleOpen && formDataWithRole.selectedWorkspaceId) {
-      const reloadRoles = async () => {
-        await loadRoles(formDataWithRole.selectedWorkspaceId);
-        // Clear role selection after roles are loaded to ensure fresh state
-        setFormDataWithRole((prev) => ({
-          ...prev,
-          roleId: "",
-          roleCode: "",
-          wcoId: "",
-        }));
+  const addWorkspaceRole = () => {
+    setFormDataWithRole((prev) => ({
+      ...prev,
+      workspaceRoles: [
+        ...prev.workspaceRoles,
+        {
+          workspaceId: "",
+          roleIds: [],
+          availableRoles: [],
+        },
+      ],
+    }));
+  };
+
+  const removeWorkspaceRole = (index: number) => {
+    setFormDataWithRole((prev) => ({
+      ...prev,
+      workspaceRoles: prev.workspaceRoles.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateWorkspaceRole = (
+    index: number,
+    updates: Partial<{
+      workspaceId: string;
+      roleIds: string[];
+    }>
+  ) => {
+    setFormDataWithRole((prev) => {
+      const updated = [...prev.workspaceRoles];
+      updated[index] = {
+        ...updated[index],
+        ...updates,
+        availableRoles:
+          updates.workspaceId && workspaceRolesMap[updates.workspaceId]
+            ? workspaceRolesMap[updates.workspaceId]
+            : updated[index].availableRoles,
       };
-      reloadRoles();
-    }
-  }, [formDataWithRole.selectedWorkspaceId, isCreateWithRoleOpen]);
+      return {
+        ...prev,
+        workspaceRoles: updated,
+      };
+    });
+  };
+
+  // Load roles when workspace is selected in a workspace-role assignment
+  useEffect(() => {
+    formDataWithRole.workspaceRoles.forEach((wr, index) => {
+      if (wr.workspaceId && !workspaceRolesMap[wr.workspaceId]) {
+        loadRoles(wr.workspaceId);
+      }
+    });
+  }, [formDataWithRole.workspaceRoles.map((wr) => wr.workspaceId).join(",")]);
 
   const resetEditForm = () => {
     setEditFormData({
@@ -538,9 +630,7 @@ export default function AdminUsersPage() {
       header: "Status",
       cell: (user) => (
         <div className="flex items-center gap-2">
-          <Badge variant={statusColors[user.status]}>
-            {user.status}
-          </Badge>
+          <Badge variant={statusColors[user.status]}>{user.status}</Badge>
           {user.emailVerified && (
             <span title="Email verified">
               <Mail className="h-4 w-4 text-green-600" />
@@ -645,10 +735,7 @@ export default function AdminUsersPage() {
               <Filter className="mr-2 h-4 w-4" />
               Filters
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleOpenCreateWithRoleDialog}
-            >
+            <Button variant="outline" onClick={handleOpenCreateWithRoleDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add User with Role
             </Button>
@@ -703,7 +790,8 @@ export default function AdminUsersPage() {
       {/* Pagination Info */}
       {totalCount > 0 && (
         <div className="text-sm text-muted-foreground">
-          Showing {((pageNumber - 1) * pageSize) + 1} to {Math.min(pageNumber * pageSize, totalCount)} of {totalCount} users
+          Showing {(pageNumber - 1) * pageSize + 1} to{" "}
+          {Math.min(pageNumber * pageSize, totalCount)} of {totalCount} users
         </div>
       )}
 
@@ -884,12 +972,16 @@ export default function AdminUsersPage() {
       </Dialog>
 
       {/* Create User with Role Dialog */}
-      <Dialog open={isCreateWithRoleOpen} onOpenChange={setIsCreateWithRoleOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog
+        open={isCreateWithRoleOpen}
+        onOpenChange={setIsCreateWithRoleOpen}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add User with Role</DialogTitle>
+            <DialogTitle>Add User with Workspaces and Roles</DialogTitle>
             <DialogDescription>
-              Create a new user account and assign a role in this workspace. Password will be auto-generated and sent via email.
+              Create a new user account and assign roles across multiple
+              workspaces. Password will be auto-generated and sent via email.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -952,74 +1044,179 @@ export default function AdminUsersPage() {
                 }
               />
             </div>
-            {userInfo?.adminDetails?.adminWorkspaces &&
-              userInfo.adminDetails.adminWorkspaces.length > 1 && (
-                <div className="space-y-2">
-                  <Label htmlFor="withRole-workspace">Workspace *</Label>
-                  <Select
-                    value={
-                      formDataWithRole.selectedWorkspaceId || workspaceId || ""
-                    }
-                    onValueChange={(value) =>
-                      setFormDataWithRole({
-                        ...formDataWithRole,
-                        selectedWorkspaceId: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select workspace" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userInfo.adminDetails.adminWorkspaces.map((ws) => (
-                        <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
-                          {ws.workspaceName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+            {/* Workspace-Role Assignments */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Workspace-Role Assignments *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addWorkspaceRole}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Workspace
+                </Button>
+              </div>
+
+              {formDataWithRole.workspaceRoles.length === 0 && (
+                <div className="text-sm text-muted-foreground p-4 border rounded-lg text-center">
+                  No workspace assignments yet. Click "Add Workspace" to get
+                  started.
                 </div>
               )}
-            <div className="space-y-2">
-              <Label htmlFor="withRole-role">Role *</Label>
-              <Select
-                key={`role-select-${formDataWithRole.selectedWorkspaceId || workspaceId}-${availableRoles.length}`}
-                value={formDataWithRole.roleId || ""}
-                onValueChange={(value) => {
-                  const selectedRole = availableRoles.find((r) => r.adminRoleId === value);
-                  if (selectedRole) {
-                    setFormDataWithRole((prev) => ({
-                      ...prev,
-                      roleId: selectedRole.adminRoleId,
-                      roleCode: selectedRole.roleCode || "",
-                      // Clear wcoId if role changes from WCO_EMPLOYEE
-                      wcoId: selectedRole.roleCode !== "WCO_EMPLOYEE" ? "" : prev.wcoId,
-                    }));
-                  } else {
-                    // If role not found, clear the selection
-                    setFormDataWithRole((prev) => ({
-                      ...prev,
-                      roleId: "",
-                      roleCode: "",
-                      wcoId: "",
-                    }));
-                  }
-                }}
-                disabled={isLoadingRoles || availableRoles.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={isLoadingRoles ? "Loading roles..." : availableRoles.length === 0 ? "No roles available" : "Select a role"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableRoles.map((role) => (
-                    <SelectItem key={role.adminRoleId} value={role.adminRoleId}>
-                      {role.roleName || role.roleCode || role.adminRoleId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+              {formDataWithRole.workspaceRoles.map((wr, index) => {
+                const availableRolesForWorkspace =
+                  workspaceRolesMap[wr.workspaceId] || [];
+                const selectedRoles = wr.roleIds || [];
+                const hasWcoRole = selectedRoles.some((roleId) => {
+                  const role = availableRolesForWorkspace.find(
+                    (r) => r.adminRoleId === roleId
+                  );
+                  return role?.roleCode === "WCO_EMPLOYEE";
+                });
+
+                return (
+                  <div
+                    key={index}
+                    className="p-4 border rounded-lg space-y-4 bg-muted/50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Label>Assignment {index + 1}</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeWorkspaceRole(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Workspace *</Label>
+                      <Select
+                        value={wr.workspaceId}
+                        onValueChange={(value) => {
+                          updateWorkspaceRole(index, {
+                            workspaceId: value,
+                            roleIds: [], // Clear roles when workspace changes
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select workspace" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userInfo?.adminDetails?.adminWorkspaces?.map(
+                            (ws) => (
+                              <SelectItem
+                                key={ws.workspaceId}
+                                value={ws.workspaceId}
+                              >
+                                {ws.workspaceName}
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {wr.workspaceId && (
+                      <div className="space-y-2">
+                        <Label>Roles *</Label>
+                        <Select
+                          value=""
+                          onValueChange={(value) => {
+                            if (!selectedRoles.includes(value)) {
+                              updateWorkspaceRole(index, {
+                                roleIds: [...selectedRoles, value],
+                              });
+                            }
+                          }}
+                          disabled={
+                            isLoadingRoles ||
+                            availableRolesForWorkspace.length === 0
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                isLoadingRoles
+                                  ? "Loading roles..."
+                                  : availableRolesForWorkspace.length === 0
+                                    ? "No roles available"
+                                    : "Select roles to add"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableRolesForWorkspace
+                              .filter(
+                                (role) =>
+                                  !selectedRoles.includes(role.adminRoleId)
+                              )
+                              .map((role) => (
+                                <SelectItem
+                                  key={role.adminRoleId}
+                                  value={role.adminRoleId}
+                                >
+                                  {role.roleName ||
+                                    role.roleCode ||
+                                    role.adminRoleId}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+
+                        {selectedRoles.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {selectedRoles.map((roleId) => {
+                              const role = availableRolesForWorkspace.find(
+                                (r) => r.adminRoleId === roleId
+                              );
+                              return (
+                                <Badge
+                                  key={roleId}
+                                  variant="secondary"
+                                  className="flex items-center gap-1"
+                                >
+                                  {role?.roleName || role?.roleCode || roleId}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateWorkspaceRole(index, {
+                                        roleIds: selectedRoles.filter(
+                                          (id) => id !== roleId
+                                        ),
+                                      });
+                                    }}
+                                    className="ml-1 hover:text-destructive"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            {formDataWithRole.roleCode === "WCO_EMPLOYEE" && (
+
+            {/* WCO ID - shown if any workspace has WCO_EMPLOYEE role */}
+            {formDataWithRole.workspaceRoles.some((wr) => {
+              const roles = workspaceRolesMap[wr.workspaceId] || [];
+              return wr.roleIds.some((roleId) => {
+                const role = roles.find((r) => r.adminRoleId === roleId);
+                return role?.roleCode === "WCO_EMPLOYEE";
+              });
+            }) && (
               <div className="space-y-2">
                 <Label htmlFor="withRole-wcoId">WCO ID *</Label>
                 <Input
@@ -1034,7 +1231,8 @@ export default function AdminUsersPage() {
                   }
                 />
                 <p className="text-sm text-muted-foreground">
-                  Required for WCO_EMPLOYEE role. The WCO company must exist and be active.
+                  Required when assigning WCO_EMPLOYEE role. The WCO company
+                  must exist and be active.
                 </p>
               </div>
             )}
@@ -1050,7 +1248,7 @@ export default function AdminUsersPage() {
               Cancel
             </Button>
             <Button onClick={handleCreateWithRole} loading={isSubmitting}>
-              Create User with Role
+              Create User
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1087,9 +1285,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Phone Number</Label>
-                  <p className="font-medium">
-                    {viewUser.phoneNumber || "N/A"}
-                  </p>
+                  <p className="font-medium">{viewUser.phoneNumber || "N/A"}</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Status</Label>
@@ -1102,7 +1298,9 @@ export default function AdminUsersPage() {
                   <p className="font-medium">{viewUser.country || "N/A"}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Email Verified</Label>
+                  <Label className="text-muted-foreground">
+                    Email Verified
+                  </Label>
                   <p className="font-medium">
                     {viewUser.emailVerified ? (
                       <span className="text-green-600">Yes</span>
@@ -1112,7 +1310,9 @@ export default function AdminUsersPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Phone Verified</Label>
+                  <Label className="text-muted-foreground">
+                    Phone Verified
+                  </Label>
                   <p className="font-medium">
                     {viewUser.phoneVerified ? (
                       <span className="text-green-600">Yes</span>

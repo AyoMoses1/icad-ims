@@ -44,11 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader, ConfirmDialog } from "@/components/shared";
-import {
-  WorkspaceResourceTreeDto,
-  Workspace,
-  UserInfo,
-} from "@/types";
+import { WorkspaceResourceTreeDto, Workspace, UserInfo } from "@/types";
 import { useWorkspaceStore } from "@/store";
 import { apiGetAuth } from "@/lib/api-client";
 import {
@@ -70,7 +66,8 @@ export default function AdminResourcesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedResource, setSelectedResource] = useState<ResourceTreeNode | null>(null);
+  const [selectedResource, setSelectedResource] =
+    useState<ResourceTreeNode | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -153,7 +150,10 @@ export default function AdminResourcesPage() {
     }));
   };
 
-  const toggleExpand = (resourceId: string, resources: ResourceTreeNode[]): ResourceTreeNode[] => {
+  const toggleExpand = (
+    resourceId: string,
+    resources: ResourceTreeNode[]
+  ): ResourceTreeNode[] => {
     return resources.map((resource) => {
       if (resource.resourceId === resourceId) {
         return { ...resource, expanded: !resource.expanded };
@@ -233,9 +233,7 @@ export default function AdminResourcesPage() {
     } catch (error) {
       console.error("Error updating resource:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to update resource"
+        error instanceof Error ? error.message : "Failed to update resource"
       );
     } finally {
       setIsSubmitting(false);
@@ -263,9 +261,7 @@ export default function AdminResourcesPage() {
     } catch (error) {
       console.error("Error deleting resource:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete resource"
+        error instanceof Error ? error.message : "Failed to delete resource"
       );
     } finally {
       setIsSubmitting(false);
@@ -309,7 +305,9 @@ export default function AdminResourcesPage() {
               ) : (
                 <File className="h-4 w-4 text-muted-foreground" />
               )}
-              <span className="font-medium">{resource.resourceName || "Unnamed"}</span>
+              <span className="font-medium">
+                {resource.resourceName || "Unnamed"}
+              </span>
               <Badge variant="outline" className="text-xs">
                 {resource.url || "—"}
               </Badge>
@@ -382,7 +380,10 @@ export default function AdminResourcesPage() {
           </SelectTrigger>
           <SelectContent>
             {workspaces.map((workspace) => (
-              <SelectItem key={workspace.workspaceId} value={workspace.workspaceId}>
+              <SelectItem
+                key={workspace.workspaceId}
+                value={workspace.workspaceId}
+              >
                 {workspace.name}
               </SelectItem>
             ))}
@@ -404,9 +405,7 @@ export default function AdminResourcesPage() {
         </div>
       ) : (
         <div className="border rounded-lg p-4">
-          <div className="space-y-1">
-            {renderResourceTree(resources)}
-          </div>
+          <div className="space-y-1">{renderResourceTree(resources)}</div>
         </div>
       )}
 
@@ -416,7 +415,8 @@ export default function AdminResourcesPage() {
           <DialogHeader>
             <DialogTitle>Edit Workspace Resource</DialogTitle>
             <DialogDescription>
-              Update the resource details. Resources with children cannot be deleted.
+              Update the resource details. Resources with children cannot be
+              deleted.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

@@ -25,14 +25,3 @@ export default function AccreditedMIIsPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

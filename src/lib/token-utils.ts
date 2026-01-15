@@ -148,4 +148,3 @@ export function getTokenExpirationDate(token: string): Date | null {
     return null;
   }
 }
-

@@ -119,12 +119,8 @@ export default function SignUpPage() {
         );
       }
 
-      toast.success("Account created successfully!", {
-        description: result.message || "You can now sign in to your account.",
-      });
-
-      // Redirect to login screen
-      router.push("/auth/signin");
+      // Redirect to check-email page with the email address
+      router.push(`/auth/check-email?email=${encodeURIComponent(data.email)}`);
     } catch (error) {
       toast.error("Registration failed", {
         description:
@@ -264,7 +260,7 @@ export default function SignUpPage() {
 
         <div className="space-y-4 border-t pt-4">
           <h3 className="text-sm font-medium">Address Information</h3>
-          
+
           <div className="space-y-2">
             <Label htmlFor="addressLine1">Address Line 1 *</Label>
             <Input
@@ -473,22 +469,3 @@ export default function SignUpPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

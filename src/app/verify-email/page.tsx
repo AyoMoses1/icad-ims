@@ -2,13 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 function VerifyEmailContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
   const token = searchParams.get("token");
@@ -100,18 +99,22 @@ function VerifyEmailContent() {
 
   if (status === "loading") {
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-500" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Verifying your email...
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Please wait while we verify your email address. This may take a few
-            seconds.
-          </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F0F4F8] p-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+          <div className="space-y-6 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-500" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Verifying your email...
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Please wait while we verify your email address. This may take a
+                few seconds.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -119,43 +122,51 @@ function VerifyEmailContent() {
 
   if (status === "error") {
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
-          <AlertCircle className="h-8 w-8 text-destructive" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Verification failed
-          </h1>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <div className="space-y-2">
-          <Button asChild className="w-full">
-            <Link href="/auth/signin">Back to sign in</Link>
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            If you need a new verification link, please contact support or try
-            signing up again.
-          </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F0F4F8] p-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+          <div className="space-y-6 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Verification failed
+              </h1>
+              <p className="text-sm text-muted-foreground">{message}</p>
+            </div>
+            <div className="space-y-2">
+              <Button asChild className="w-full">
+                <Link href="/auth/signin">Back to sign in</Link>
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                If you need a new verification link, please contact support or
+                try signing up again.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 text-center">
-      <div className="mx-auto w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-        <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-500" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F0F4F8] p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+        <div className="space-y-6 text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+            <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-500" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Email verified!
+            </h1>
+            <p className="text-sm text-muted-foreground">{message}</p>
+          </div>
+          <Button asChild className="w-full">
+            <Link href="/auth/signin">Continue to sign in</Link>
+          </Button>
+        </div>
       </div>
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Email verified!
-        </h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
-      </div>
-      <Button asChild className="w-full">
-        <Link href="/auth/signin">Continue to sign in</Link>
-      </Button>
     </div>
   );
 }
@@ -164,11 +175,15 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6 text-center">
-          <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#F0F4F8] p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+            <div className="space-y-6 text-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       }
     >
