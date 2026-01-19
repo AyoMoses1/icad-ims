@@ -560,6 +560,16 @@ export function Sidebar() {
       <ScrollArea className="flex-1 px-3 py-4 sidebar-scroll">
         {/* System Menu Items */}
         <div className="space-y-1 mb-6">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm hover:bg-sidebar-muted text-sidebar-foreground"
+            onClick={() => {
+              window.location.href = "http://localhost:3000";
+            }}
+          >
+            <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+            <span>Dashboard</span>
+          </Button>
           <NavLink
             item={{ title: "Invitations", href: "/invitations" }}
             icon={Mail}
