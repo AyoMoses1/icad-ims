@@ -9,12 +9,9 @@ import {
   MoreHorizontal,
   Search,
   Building,
-  Settings,
-  FolderTree,
-  Users,
-  Shield,
   ArrowRight,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,36 +43,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, ConfirmDialog } from "@/components/shared";
 import { useWorkspaceStore } from "@/store";
-import { Workspace, WorkspaceResource, PaginatedResponse } from "@/types";
+import { Workspace, PaginatedResponse } from "@/types";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 
 export default function AdminWorkspacesPage() {
   const router = useRouter();
-  const { setCurrentWorkspace, setWorkspaces } = useWorkspaceStore();
+  const { setWorkspaces } = useWorkspaceStore();
 
   const [workspaces, setWorkspacesLocal] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(
     null
   );
-  const [workspaceResources, setWorkspaceResources] = useState<
-    WorkspaceResource[]
-  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<
-    "all" | "active" | "inactive"
-  >("all");
-  const [resourcesTab, setResourcesTab] = useState<"list" | "add">("list");
+  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">(
+    "all"
+  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -85,19 +84,6 @@ export default function AdminWorkspacesPage() {
     color: "#6366F1",
     isActive: true,
   });
-
-  const [resourceForm, setResourceForm] = useState({
-    resourceName: "",
-    description: "",
-    url: "",
-    parentId: "",
-    order: 0,
-    isActive: true,
-  });
-
-  useEffect(() => {
-    loadWorkspaces();
-  }, []);
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -126,24 +112,10 @@ export default function AdminWorkspacesPage() {
     }
   };
 
-  const loadWorkspaceResources = async (workspaceId: string) => {
-    try {
-      const result = await apiGet<
-        WorkspaceResource[] | PaginatedResponse<WorkspaceResource>
-      >(`/api/workspaces/${workspaceId}/resources`);
-      if (result.success && result.data) {
-        const resourcesData = Array.isArray(result.data)
-          ? result.data
-          : result.data.items || [];
-        setWorkspaceResources(resourcesData);
-      } else {
-        setWorkspaceResources([]);
-      }
-    } catch (error) {
-      console.error("Failed to load workspace resources:", error);
-      setWorkspaceResources([]);
-    }
-  };
+  useEffect(() => {
+    loadWorkspaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCreate = async () => {
     if (!formData.name.trim()) {
@@ -243,51 +215,6 @@ export default function AdminWorkspacesPage() {
     }
   };
 
-  const handleAddResource = async () => {
-    if (!selectedWorkspace || !resourceForm.resourceName.trim()) {
-      toast.error("Resource name is required");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await apiPost<WorkspaceResource>(
-        `/api/workspaces/${selectedWorkspace.workspaceId}/resources`,
-        {
-          resourceName: resourceForm.resourceName,
-          description: resourceForm.description || undefined,
-          url: resourceForm.url || undefined,
-          parentId: resourceForm.parentId || undefined,
-          order: resourceForm.order,
-          isActive: resourceForm.isActive,
-        }
-      );
-
-      if (result.success) {
-        toast.success("Resource added successfully");
-        setResourceForm({
-          resourceName: "",
-          description: "",
-          url: "",
-          parentId: "",
-          order: 0,
-          isActive: true,
-        });
-        loadWorkspaceResources(selectedWorkspace.workspaceId);
-        // Switch to list tab to show the newly added resource
-        setResourcesTab("list");
-      } else {
-        toast.error(result.error?.message || "Failed to add resource");
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to add resource"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSwitchWorkspace = async (workspaceId: string) => {
     try {
       const result = await apiPost<any>(
@@ -297,7 +224,6 @@ export default function AdminWorkspacesPage() {
 
       if (result.success) {
         toast.success("Workspace switched successfully");
-        // Reload the page or update workspace store
         window.location.reload();
       } else {
         toast.error(result.error?.message || "Failed to switch workspace");
@@ -331,13 +257,6 @@ export default function AdminWorkspacesPage() {
       isActive: workspace.isActive,
     });
     setIsEditOpen(true);
-  };
-
-  const openResourcesDialog = async (workspace: Workspace) => {
-    setSelectedWorkspace(workspace);
-    setResourcesTab("list");
-    setIsResourcesOpen(true);
-    await loadWorkspaceResources(workspace.workspaceId);
   };
 
   const filteredWorkspaces = workspaces.filter((ws) => {
@@ -379,10 +298,7 @@ export default function AdminWorkspacesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select
-          value={activeFilter}
-          onValueChange={(v: any) => setActiveFilter(v)}
-        >
+        <Select value={activeFilter} onValueChange={(v: any) => setActiveFilter(v)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -402,7 +318,7 @@ export default function AdminWorkspacesPage() {
         </Button>
       </div>
 
-      {/* Workspaces Table/List */}
+      {/* Workspaces Table */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -421,126 +337,123 @@ export default function AdminWorkspacesPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredWorkspaces.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">
-                  No workspaces found
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchQuery || activeFilter !== "all"
-                    ? "Try adjusting your search or filters"
-                    : "Create your first workspace to get started"}
-                </p>
-                {!searchQuery && activeFilter === "all" && (
-                  <Button onClick={() => setIsCreateOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Workspace
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            filteredWorkspaces.map((workspace) => (
-              <Card
-                key={workspace.workspaceId}
-                className="hover:shadow-md transition-shadow"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div
-                        className="h-12 w-12 rounded-lg flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-                        style={{
-                          backgroundColor: workspace.color || "#6366F1",
-                        }}
-                      >
-                        {workspace.name.charAt(0).toUpperCase()}
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredWorkspaces.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Building className="h-12 w-12 mb-4 opacity-50" />
+                      <p className="text-lg font-medium">No workspaces found</p>
+                      <p className="text-sm">
+                        {searchQuery || activeFilter !== "all"
+                          ? "Try adjusting your search or filters"
+                          : "Create your first workspace to get started"}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredWorkspaces.map((workspace) => (
+                  <TableRow key={workspace.workspaceId}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-8 w-8 rounded-md flex items-center justify-center text-white text-xs font-bold"
+                          style={{
+                            backgroundColor: workspace.color || "#6366F1",
+                          }}
+                        >
+                          {workspace.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium">{workspace.name}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-lg truncate">
-                            {workspace.name}
-                          </h3>
-                          <Badge
-                            variant={
-                              workspace.isActive ? "default" : "secondary"
+                    </TableCell>
+                    <TableCell>
+                      <span className="line-clamp-1 max-w-[200px] text-muted-foreground">
+                        {workspace.description || "-"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {(workspace as any).code ? (
+                        <Badge variant="outline">{(workspace as any).code}</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={workspace.isActive ? "default" : "secondary"}
+                      >
+                        {workspace.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {workspace.createdAt
+                        ? formatDate(workspace.createdAt)
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(
+                                `/admin/workspaces/${workspace.workspaceId}`
+                              )
                             }
                           >
-                            {workspace.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                          {(workspace as any).code && (
-                            <Badge variant="outline">
-                              {(workspace as any).code}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                          {workspace.description || "No description"}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>
-                            Created:{" "}
-                            {workspace.createdAt
-                              ? formatDate(workspace.createdAt)
-                              : "N/A"}
-                          </span>
-                          {workspace.workspaceUrl && (
-                            <span className="truncate max-w-xs">
-                              URL: {workspace.workspaceUrl}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => openEditDialog(workspace)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => openResourcesDialog(workspace)}
-                        >
-                          <FolderTree className="mr-2 h-4 w-4" />
-                          Manage Resources
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            handleSwitchWorkspace(workspace.workspaceId)
-                          }
-                        >
-                          <ArrowRight className="mr-2 h-4 w-4" />
-                          Switch to Workspace
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedWorkspace(workspace);
-                            setIsDeleteOpen(true);
-                          }}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openEditDialog(workspace)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
+                          >
+                            <ArrowRight className="mr-2 h-4 w-4" />
+                            Switch to Workspace
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedWorkspace(workspace);
+                              setIsDeleteOpen(true);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       {/* Create Workspace Dialog */}
@@ -744,169 +657,6 @@ export default function AdminWorkspacesPage() {
               className="bg-primary hover:bg-primary/90"
             >
               {isSubmitting ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Manage Resources Dialog */}
-      <Dialog open={isResourcesOpen} onOpenChange={setIsResourcesOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>
-              Manage Resources - {selectedWorkspace?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Add and manage resources for this workspace
-            </DialogDescription>
-          </DialogHeader>
-          <Tabs
-            value={resourcesTab}
-            onValueChange={(v) => setResourcesTab(v as "list" | "add")}
-            className="w-full"
-          >
-            <TabsList>
-              <TabsTrigger value="list">Resources</TabsTrigger>
-              <TabsTrigger value="add">Add Resource</TabsTrigger>
-            </TabsList>
-            <TabsContent
-              value="list"
-              className="space-y-4 max-h-[400px] overflow-y-auto"
-            >
-              {workspaceResources.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No resources configured for this workspace</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {workspaceResources.map((resource) => (
-                    <div
-                      key={resource.resourceId}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div>
-                        <p className="font-medium">{resource.resourceName}</p>
-                        {resource.description && (
-                          <p className="text-sm text-muted-foreground">
-                            {resource.description}
-                          </p>
-                        )}
-                        {resource.url && (
-                          <p className="text-xs text-muted-foreground">
-                            {resource.url}
-                          </p>
-                        )}
-                      </div>
-                      <Badge
-                        variant={resource.isActive ? "default" : "secondary"}
-                      >
-                        {resource.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="add" className="space-y-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="resourceName">Resource Name *</Label>
-                  <Input
-                    id="resourceName"
-                    placeholder="Enter resource name"
-                    value={resourceForm.resourceName}
-                    onChange={(e) =>
-                      setResourceForm({
-                        ...resourceForm,
-                        resourceName: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="resourceDescription">Description</Label>
-                  <Textarea
-                    id="resourceDescription"
-                    placeholder="Enter resource description"
-                    value={resourceForm.description}
-                    onChange={(e) =>
-                      setResourceForm({
-                        ...resourceForm,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="resourceUrl">URL</Label>
-                  <Input
-                    id="resourceUrl"
-                    placeholder="/api/resource or full URL"
-                    value={resourceForm.url}
-                    onChange={(e) =>
-                      setResourceForm({ ...resourceForm, url: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="parentResource">Parent Resource</Label>
-                  <Select
-                    value={resourceForm.parentId || undefined}
-                    onValueChange={(value) =>
-                      setResourceForm({
-                        ...resourceForm,
-                        parentId: value === "none" ? "" : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="None (top level)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (top level)</SelectItem>
-                      {workspaceResources.map((resource) => (
-                        <SelectItem
-                          key={resource.resourceId}
-                          value={resource.resourceId}
-                        >
-                          {resource.resourceName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="resourceIsActive"
-                    checked={resourceForm.isActive}
-                    onChange={(e) =>
-                      setResourceForm({
-                        ...resourceForm,
-                        isActive: e.target.checked,
-                      })
-                    }
-                    className="rounded"
-                  />
-                  <Label htmlFor="resourceIsActive" className="cursor-pointer">
-                    Active
-                  </Label>
-                </div>
-              </div>
-              <Button
-                onClick={handleAddResource}
-                disabled={isSubmitting}
-                className="w-full"
-              >
-                {isSubmitting ? "Adding..." : "Add Resource"}
-              </Button>
-            </TabsContent>
-          </Tabs>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsResourcesOpen(false)}>
-              Close
             </Button>
           </DialogFooter>
         </DialogContent>
