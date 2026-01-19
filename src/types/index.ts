@@ -647,14 +647,28 @@ export interface WorkspaceResourceTreeDto {
   resourceId: string;
   workspaceId: string;
   resourceName?: string | null;
+  description?: string | null;
   url?: string | null;
   parentId?: string | null;
+  order?: number | null;
+  isActive?: boolean;
   children?: WorkspaceResourceTreeDto[] | null;
+}
+
+export interface CreateWorkspaceResourceRequestDto {
+  resourceName: string;
+  description?: string | null;
+  url?: string | null;
+  parentId?: string | null;
+  order?: number | null;
+  isActive?: boolean;
 }
 
 export interface UpdateWorkspaceResourceRequestDto {
   resourceName?: string | null;
+  description?: string | null;
   url?: string | null;
   parentId?: string | null;
+  order?: number | null;
   isActive?: boolean | null;
 }
