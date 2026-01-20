@@ -564,16 +564,19 @@ export function Sidebar() {
             variant="ghost"
             className="w-full justify-start gap-3 px-3 py-2.5 text-sm hover:bg-sidebar-muted text-sidebar-foreground"
             onClick={() => {
-              window.location.href = "http://localhost:3000";
+              router.push("/");
             }}
           >
             <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
             <span>Dashboard</span>
           </Button>
-          <NavLink
-            item={{ title: "Invitations", href: "/invitations" }}
-            icon={Mail}
-          />
+          {/* Invitations - Only show for non-admin users */}
+          {!userInfo?.isAdmin && (
+            <NavLink
+              item={{ title: "Invitations", href: "/invitations" }}
+              icon={Mail}
+            />
+          )}
           {/* Admin Section - Only show if user is admin */}
           {userInfo?.isAdmin && (
             <>
@@ -603,17 +606,19 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Workspace Label */}
-        <div className="px-3 mb-3">
-          <span className="text-xs font-semibold text-sidebar-muted-foreground uppercase tracking-wider">
-            Workspace
-          </span>
-        </div>
+        {/* Workspace Label - Only show for non-admin users */}
+        {!userInfo?.isAdmin && (
+          <>
+            <div className="px-3 mb-3">
+              <span className="text-xs font-semibold text-sidebar-muted-foreground uppercase tracking-wider">
+                Workspace
+              </span>
+            </div>
 
-        {/* Navigation */}
-        <nav className="space-y-1">
-          {/* Workspaces with their menus from /api/menu endpoint */}
-          {workspaceMenus.length > 0 && (
+            {/* Navigation */}
+            <nav className="space-y-1">
+              {/* Workspaces with their menus from /api/menu endpoint */}
+              {workspaceMenus.length > 0 && (
             <>
               {workspaceMenus.map((workspaceMenu) => {
                 const workspaceResources = workspaceMenu.resources || [];
@@ -849,7 +854,9 @@ export function Sidebar() {
               })}
             </>
           )}
-        </nav>
+            </nav>
+          </>
+        )}
       </ScrollArea>
 
       {/* User Profile */}

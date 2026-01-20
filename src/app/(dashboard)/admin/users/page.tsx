@@ -725,7 +725,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="User Management"
-        description={`Manage users in ${workspaceName}`}
+        description="Manage users across all workspaces"
         actions={
           <div className="flex gap-2">
             <Button
