@@ -16,6 +16,7 @@ import {
   Search,
   UserPlus,
   Key,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,9 +67,15 @@ import {
   User,
   PaginatedResponse,
   UserStatus,
+  Permission,
 } from "@/types";
 import { formatDate, getInitials } from "@/lib/utils";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client";
+import {
+  extractPermissionAssignments,
+  groupPermissionAssignments,
+  type RolePermissionGroup,
+} from "@/lib/permission-utils";
 
 export default function WorkspaceDetailPage() {
   const params = useParams();
@@ -82,7 +89,7 @@ export default function WorkspaceDetailPage() {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [menu, setMenu] = useState<WorkspaceResource[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [allPermissions, setAllPermissions] = useState<any[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -93,6 +100,17 @@ export default function WorkspaceDetailPage() {
   const [isAddResourceOpen, setIsAddResourceOpen] = useState(false);
   const [isAddRoleOpen, setIsAddRoleOpen] = useState(false);
   const [isAssignPermissionsOpen, setIsAssignPermissionsOpen] = useState(false);
+  const [isViewRolePermissionsOpen, setIsViewRolePermissionsOpen] =
+    useState(false);
+  const [rolePermissionsSummary, setRolePermissionsSummary] = useState<
+    RolePermissionGroup[]
+  >([]);
+  const [rolePermissionsSummaryRole, setRolePermissionsSummaryRole] =
+    useState<WorkspaceRole | null>(null);
+  const [
+    isLoadingRolePermissionsSummary,
+    setIsLoadingRolePermissionsSummary,
+  ] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<WorkspaceMember | null>(
     null
@@ -475,18 +493,24 @@ export default function WorkspaceDetailPage() {
     }
   };
 
-  const loadAllPermissions = async () => {
+  const loadAllPermissions = async (): Promise<Permission[]> => {
     try {
-      const result = await apiGet<PaginatedResponse<any>>("/api/permissions");
+      const result = await apiGet<PaginatedResponse<Permission>>(
+        "/api/permissions"
+      );
       if (result.success && result.data) {
         // Extract the items array from the paginated response
-        setAllPermissions(result.data.items || []);
+        const permissionsList = (result.data.items || []) as Permission[];
+        setAllPermissions(permissionsList);
+        return permissionsList;
       } else {
         setAllPermissions([]);
+        return [];
       }
     } catch (error) {
       console.error("Failed to load permissions", error);
       setAllPermissions([]);
+      return [];
     }
   };
 
@@ -740,6 +764,42 @@ export default function WorkspaceDetailPage() {
       console.error("Failed to fetch existing permissions for role:", error);
       // Return empty array on error so UI still works
       return [];
+    }
+  };
+
+  const handleViewRolePermissions = async (role: WorkspaceRole) => {
+    setRolePermissionsSummaryRole(role);
+    setIsViewRolePermissionsOpen(true);
+    setIsLoadingRolePermissionsSummary(true);
+    try {
+      const permissionsSnapshot =
+        allPermissions.length > 0 ? allPermissions : await loadAllPermissions();
+
+      const result = await apiGet<any>(
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions`
+      );
+
+      if (result.success && result.data) {
+        const assignments = extractPermissionAssignments(result.data);
+        const groups = groupPermissionAssignments(
+          assignments,
+          resources,
+          permissionsSnapshot
+        );
+        setRolePermissionsSummary(groups);
+      } else {
+        setRolePermissionsSummary([]);
+      }
+    } catch (error) {
+      console.error("Failed to load role permissions summary", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to load role permissions"
+      );
+      setRolePermissionsSummary([]);
+    } finally {
+      setIsLoadingRolePermissionsSummary(false);
     }
   };
 
@@ -1100,35 +1160,22 @@ export default function WorkspaceDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewRolePermissions(role)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Access
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
-                          onClick={async () => {
-                            setSelectedRole(role);
-                            const defaultResource = resources[0] || null;
-                            setSelectedResource(defaultResource);
-                            setIsAssignPermissionsOpen(true);
-                            // Load existing permissions for this role and resource
-                            if (defaultResource) {
-                              setIsLoadingRolePermissions(true);
-                              try {
-                                const existingPermissionIds =
-                                  await loadRolePermissions(
-                                    role.workspaceRoleId,
-                                    defaultResource.resourceId
-                                  );
-                                setSelectedPermissionIds(existingPermissionIds);
-                              } catch (error) {
-                                console.error(
-                                  "Failed to load existing permissions:",
-                                  error
-                                );
-                                setSelectedPermissionIds([]);
-                              } finally {
-                                setIsLoadingRolePermissions(false);
-                              }
-                            } else {
-                              setSelectedPermissionIds([]);
-                            }
+                          onClick={() => {
+                            const params = new URLSearchParams({
+                              workspaceId,
+                              roleId: role.workspaceRoleId,
+                            });
+                            router.push(`/assign-permissions?${params.toString()}`);
                           }}
                         >
                           <Key className="mr-2 h-4 w-4" />
@@ -1724,6 +1771,73 @@ export default function WorkspaceDetailPage() {
                 : isLoadingRolePermissions
                   ? "Loading..."
                   : "Assign Permissions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Role Access Dialog */}
+      <Dialog
+        open={isViewRolePermissionsOpen}
+        onOpenChange={(open) => {
+          setIsViewRolePermissionsOpen(open);
+          if (!open) {
+            setRolePermissionsSummary([]);
+            setRolePermissionsSummaryRole(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Role Access</DialogTitle>
+            <DialogDescription>
+              View resources and permissions currently assigned to{" "}
+              {rolePermissionsSummaryRole?.name ||
+                rolePermissionsSummaryRole?.roleName ||
+                "this role"}
+              .
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {isLoadingRolePermissionsSummary ? (
+              <p className="text-center text-muted-foreground py-4">
+                Loading permissions...
+              </p>
+            ) : rolePermissionsSummary.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">
+                No resources or permissions have been assigned to this role yet.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {rolePermissionsSummary.map((group) => (
+                  <div
+                    key={group.resourceId}
+                    className="rounded-lg border p-4 space-y-3"
+                  >
+                    <div className="font-medium">{group.resourceName}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.permissions.map((permission) => (
+                        <Badge
+                          key={`${group.resourceId}-${permission.permissionId}`}
+                          variant="outline"
+                        >
+                          {permission.permissionName ||
+                            permission.permissionCode ||
+                            permission.permissionId}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsViewRolePermissionsOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

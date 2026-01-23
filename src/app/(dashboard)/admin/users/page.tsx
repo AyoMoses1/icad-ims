@@ -13,6 +13,7 @@ import {
   Eye,
   Filter,
   X,
+  Key,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,10 +53,18 @@ import {
   ConfirmDialog,
   LoadingPage,
 } from "@/components/shared";
-import { User, UserWithFullName, UserStatus, UserInfo } from "@/types";
+import {
+  User,
+  UserWithFullName,
+  UserStatus,
+  UserInfo,
+  WorkspaceResource,
+  Permission,
+  PaginatedResponse,
+} from "@/types";
 import { formatDate, getInitials } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store";
-import { apiGetAuth } from "@/lib/api-client";
+import { apiGetAuth, apiGet } from "@/lib/api-client";
 import {
   getAdminUsers,
   getAdminUserById,
@@ -65,8 +75,18 @@ import {
   deactivateAdminUser,
   type WorkspaceRoleAssignment,
 } from "@/lib/services/admin-user-service";
-import { getAllAdminRoles } from "@/lib/services/admin-role-service";
+import {
+  getAllAdminRoles,
+  getAdminRoleById,
+  assignPermissionsToAdminRole,
+} from "@/lib/services/admin-role-service";
 import { AdminRoleDto } from "@/types";
+import {
+  extractPermissionAssignments,
+  groupPermissionAssignments,
+  getPermissionIdsForResource,
+  type RolePermissionGroup,
+} from "@/lib/permission-utils";
 
 const statusColors: Record<
   UserStatus,
@@ -119,6 +139,10 @@ export default function AdminUsersPage() {
     Record<string, AdminRoleDto[]>
   >({});
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [workspaceResources, setWorkspaceResources] = useState<
+    WorkspaceResource[]
+  >([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
 
   const [editFormData, setEditFormData] = useState({
     firstName: "",
@@ -129,6 +153,18 @@ export default function AdminUsersPage() {
     stateOrProvince: "",
     countryId: "",
   });
+  const [isManageAccessOpen, setIsManageAccessOpen] = useState(false);
+  const [selectedAccessRoleId, setSelectedAccessRoleId] = useState("");
+  const [selectedAccessResourceId, setSelectedAccessResourceId] =
+    useState("");
+  const [selectedAccessPermissionIds, setSelectedAccessPermissionIds] =
+    useState<string[]>([]);
+  const [roleAccessSummary, setRoleAccessSummary] = useState<
+    RolePermissionGroup[]
+  >([]);
+  const [isLoadingRoleAccess, setIsLoadingRoleAccess] = useState(false);
+  const [isSubmittingPermissions, setIsSubmittingPermissions] =
+    useState(false);
 
   // Fetch userinfo and determine workspace ID
   useEffect(() => {
@@ -197,6 +233,17 @@ export default function AdminUsersPage() {
     }
   }, [workspaceId, pageNumber, statusFilter, searchQuery]);
 
+  useEffect(() => {
+    if (workspaceId) {
+      loadWorkspaceResources(workspaceId);
+      loadPermissionsList();
+      if (!workspaceRolesMap[workspaceId]) {
+        loadRoles(workspaceId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
+
   const loadUsers = async () => {
     if (!workspaceId) return;
 
@@ -253,6 +300,46 @@ export default function AdminUsersPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadWorkspaceResources = async (
+    targetWorkspaceId: string
+  ): Promise<WorkspaceResource[]> => {
+    try {
+      const result = await apiGet<
+        WorkspaceResource[] | PaginatedResponse<WorkspaceResource>
+      >(`/api/workspaces/${targetWorkspaceId}/resources`);
+      if (result.success && result.data) {
+        const resourcesData = Array.isArray(result.data)
+          ? result.data
+          : result.data.items || [];
+        setWorkspaceResources(resourcesData);
+        return resourcesData;
+      }
+    } catch (error) {
+      console.error("Failed to load workspace resources", error);
+    }
+    setWorkspaceResources([]);
+    return [];
+  };
+
+  const loadPermissionsList = async (): Promise<Permission[]> => {
+    try {
+      const result = await apiGet<PaginatedResponse<Permission>>(
+        "/api/permissions"
+      );
+      if (result.success && result.data) {
+        const permissionsData = Array.isArray(result.data)
+          ? (result.data as Permission[])
+          : ((result.data.items || []) as Permission[]);
+        setAllPermissions(permissionsData);
+        return permissionsData;
+      }
+    } catch (error) {
+      console.error("Failed to load permissions", error);
+    }
+    setAllPermissions([]);
+    return [];
   };
 
   const handleCreateWithRole = async () => {
@@ -607,6 +694,166 @@ export default function AdminUsersPage() {
     });
   };
 
+  const handleOpenManageAccess = async (user: UserWithFullName) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace first");
+      return;
+    }
+
+    setSelectedUser(user);
+    setIsManageAccessOpen(true);
+    setSelectedAccessRoleId("");
+    setSelectedAccessResourceId("");
+    setSelectedAccessPermissionIds([]);
+    setRoleAccessSummary([]);
+
+    if (!workspaceRolesMap[workspaceId]) {
+      await loadRoles(workspaceId);
+    }
+    if (workspaceResources.length === 0) {
+      await loadWorkspaceResources(workspaceId);
+    }
+    if (allPermissions.length === 0) {
+      await loadPermissionsList();
+    }
+  };
+
+  const refreshRoleAccessSummary = async (
+    roleId: string,
+    preferredResourceId?: string
+  ) => {
+    if (!workspaceId) {
+      return;
+    }
+
+    setIsLoadingRoleAccess(true);
+    try {
+      const [resourcesSnapshot, permissionsSnapshot] = await Promise.all([
+        workspaceResources.length > 0
+          ? Promise.resolve(workspaceResources)
+          : loadWorkspaceResources(workspaceId),
+        allPermissions.length > 0
+          ? Promise.resolve(allPermissions)
+          : loadPermissionsList(),
+      ]);
+
+      const result = await getAdminRoleById(roleId, workspaceId);
+      if (result.success && result.data) {
+        const rawPermissions =
+          (result.data as any).permissions ||
+          (Array.isArray(result.data) ? result.data : []);
+        const assignments = extractPermissionAssignments(rawPermissions);
+        const groups = groupPermissionAssignments(
+          assignments,
+          resourcesSnapshot,
+          permissionsSnapshot
+        );
+        setRoleAccessSummary(groups);
+
+        const fallbackResource =
+          preferredResourceId ||
+          selectedAccessResourceId ||
+          groups[0]?.resourceId ||
+          resourcesSnapshot[0]?.resourceId ||
+          "";
+
+        const resolvedResourceId = groups.some(
+          (group) => group.resourceId === fallbackResource
+        )
+          ? fallbackResource
+          : groups[0]?.resourceId || resourcesSnapshot[0]?.resourceId || "";
+
+        setSelectedAccessResourceId(resolvedResourceId);
+        setSelectedAccessPermissionIds(
+          resolvedResourceId
+            ? getPermissionIdsForResource(resolvedResourceId, groups)
+            : []
+        );
+      } else {
+        setRoleAccessSummary([]);
+        setSelectedAccessPermissionIds([]);
+        toast.error("Failed to load role permissions");
+      }
+    } catch (error) {
+      console.error("Failed to load role permissions", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to load role permissions"
+      );
+      setRoleAccessSummary([]);
+      setSelectedAccessPermissionIds([]);
+    } finally {
+      setIsLoadingRoleAccess(false);
+    }
+  };
+
+  const handleSelectAccessRole = async (roleId: string) => {
+    setSelectedAccessRoleId(roleId);
+    await refreshRoleAccessSummary(roleId);
+  };
+
+  const handleSelectAccessResource = (resourceId: string) => {
+    setSelectedAccessResourceId(resourceId);
+    setSelectedAccessPermissionIds(
+      getPermissionIdsForResource(resourceId, roleAccessSummary)
+    );
+  };
+
+  const handleAssignPermissionsToAdminRole = async () => {
+    if (!workspaceId || !selectedAccessRoleId || !selectedAccessResourceId) {
+      toast.error("Please select a role and resource");
+      return;
+    }
+
+    if (selectedAccessPermissionIds.length === 0) {
+      toast.error("Please select at least one permission");
+      return;
+    }
+
+    setIsSubmittingPermissions(true);
+    try {
+      const result = await assignPermissionsToAdminRole(
+        selectedAccessRoleId,
+        workspaceId,
+        selectedAccessPermissionIds.map((permissionId) => ({
+          resourceId: selectedAccessResourceId,
+          permissionId,
+        }))
+      );
+
+      if (result.success) {
+        toast.success("Permissions assigned successfully");
+        await refreshRoleAccessSummary(
+          selectedAccessRoleId,
+          selectedAccessResourceId
+        );
+      } else {
+        toast.error(result.message || "Failed to assign permissions");
+      }
+    } catch (error) {
+      console.error("Failed to assign permissions", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to assign permissions"
+      );
+    } finally {
+      setIsSubmittingPermissions(false);
+    }
+  };
+
+  const handleManageAccessOpenChange = (open: boolean) => {
+    setIsManageAccessOpen(open);
+    if (!open) {
+      setSelectedAccessRoleId("");
+      setSelectedAccessResourceId("");
+      setSelectedAccessPermissionIds([]);
+      setRoleAccessSummary([]);
+      setIsLoadingRoleAccess(false);
+    }
+  };
+
   const columns: DataTableColumn<UserWithFullName>[] = [
     {
       id: "user",
@@ -660,6 +907,10 @@ export default function AdminUsersPage() {
             <DropdownMenuItem onClick={() => handleViewUser(user)}>
               <Eye className="mr-2 h-4 w-4" />
               View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleOpenManageAccess(user)}>
+              <Key className="mr-2 h-4 w-4" />
+              Manage Access
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => openEditDialog(user)}>
               <Pencil className="mr-2 h-4 w-4" />
@@ -1249,6 +1500,192 @@ export default function AdminUsersPage() {
             </Button>
             <Button onClick={handleCreateWithRole} loading={isSubmitting}>
               Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Access Dialog */}
+      <Dialog
+        open={isManageAccessOpen}
+        onOpenChange={handleManageAccessOpenChange}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Access{" "}
+              {selectedUser ? `for ${selectedUser.fullName}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Assign workspace resources and permissions to admin roles.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select
+                value={selectedAccessRoleId}
+                onValueChange={handleSelectAccessRole}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaceId &&
+                    (workspaceRolesMap[workspaceId] || []).map((role) => (
+                      <SelectItem
+                        key={role.adminRoleId}
+                        value={role.adminRoleId}
+                      >
+                        {role.roleName || role.roleCode || role.adminRoleId}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedAccessRoleId ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Resource</Label>
+                  <Select
+                    value={selectedAccessResourceId}
+                    onValueChange={handleSelectAccessResource}
+                    disabled={workspaceResources.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          workspaceResources.length === 0
+                            ? "No resources available"
+                            : "Select a resource"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workspaceResources.map((resource) => (
+                        <SelectItem
+                          key={resource.resourceId}
+                          value={resource.resourceId}
+                        >
+                          {resource.resourceName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Permissions</Label>
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto border rounded-lg p-4">
+                    {allPermissions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Loading permissions...
+                      </p>
+                    ) : (
+                      allPermissions.map((permission) => (
+                        <div
+                          key={permission.permissionId}
+                          className="flex items-center space-x-2"
+                        >
+                          <Checkbox
+                            id={`admin-permission-${permission.permissionId}`}
+                            checked={selectedAccessPermissionIds.includes(
+                              permission.permissionId
+                            )}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedAccessPermissionIds([
+                                  ...selectedAccessPermissionIds,
+                                  permission.permissionId,
+                                ]);
+                              } else {
+                                setSelectedAccessPermissionIds(
+                                  selectedAccessPermissionIds.filter(
+                                    (id) => id !== permission.permissionId
+                                  )
+                                );
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`admin-permission-${permission.permissionId}`}
+                            className="flex-1 cursor-pointer"
+                          >
+                            <div className="font-medium">
+                              {permission.permissionName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {permission.permissionCode}
+                            </div>
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Current Access</Label>
+                  {isLoadingRoleAccess ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Loading access summary...
+                    </p>
+                  ) : roleAccessSummary.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      No permissions assigned to this role yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                      {roleAccessSummary.map((group) => (
+                        <div
+                          key={group.resourceId}
+                          className="border rounded-lg p-3 space-y-2"
+                        >
+                          <div className="font-medium">
+                            {group.resourceName}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {group.permissions.map((permission) => (
+                              <Badge
+                                key={`${group.resourceId}-${permission.permissionId}`}
+                                variant="outline"
+                              >
+                                {permission.permissionName ||
+                                  permission.permissionCode ||
+                                  permission.permissionId}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a role to load its resources and permissions.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => handleManageAccessOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignPermissionsToAdminRole}
+              disabled={
+                !selectedAccessRoleId ||
+                !selectedAccessResourceId ||
+                selectedAccessPermissionIds.length === 0 ||
+                isSubmittingPermissions
+              }
+            >
+              {isSubmittingPermissions ? "Saving..." : "Assign Permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>
