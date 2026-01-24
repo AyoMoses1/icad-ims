@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, RefreshCcw, Key } from "lucide-react";
+import { ArrowLeft, RefreshCcw, Key, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import {
   getPermissionIdsForResource,
   type RolePermissionGroup,
 } from "@/lib/permission-utils";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 
 export default function AssignPermissionsPage() {
   const router = useRouter();
@@ -297,6 +297,110 @@ export default function AssignPermissionsPage() {
     );
   };
 
+  // Helper function to flatten resources with hierarchy for display
+  // Handles both resources with children array and flat resources with parentId
+  const flattenResourcesWithHierarchy = (
+    resources: WorkspaceResource[],
+    parentId: string | null | undefined = null,
+    level: number = 0
+  ): Array<WorkspaceResource & { displayName: string; level: number }> => {
+    const result: Array<WorkspaceResource & { displayName: string; level: number }> = [];
+    
+    // Filter resources by parentId (for flat structure)
+    // If parentId is null, get top-level resources (no parentId or parentId is null)
+    const filteredResources = resources.filter((r) => {
+      if (parentId === null) {
+        // Top level: no parentId or parentId is null/undefined
+        return !r.parentId;
+      } else {
+        // Child level: match parentId
+        return r.parentId === parentId;
+      }
+    });
+    
+    filteredResources.forEach((resource) => {
+      const indent = "  ".repeat(level);
+      const prefix = level > 0 ? "└─ " : "";
+      result.push({
+        ...resource,
+        displayName: `${indent}${prefix}${resource.resourceName?.trim() || "Unnamed Resource"}`,
+        level,
+      });
+      
+      // If resource has children array, use those first (this handles tree structure)
+      if (resource.children && Array.isArray(resource.children) && resource.children.length > 0) {
+        resource.children.forEach((child) => {
+          const childIndent = "  ".repeat(level + 1);
+          result.push({
+            ...child,
+            displayName: `${childIndent}└─ ${child.resourceName?.trim() || "Unnamed Resource"}`,
+            level: level + 1,
+          });
+          
+          // Recursively add nested children if they exist
+          if (child.children && Array.isArray(child.children) && child.children.length > 0) {
+            const nestedChildren = flattenResourcesWithHierarchy(
+              child.children as WorkspaceResource[],
+              child.resourceId,
+              level + 2
+            );
+            result.push(...nestedChildren);
+          }
+        });
+      } else {
+        // Otherwise, look for children by parentId in the flat list
+        // This handles the case where resources are flat but have parentId references
+        const children = flattenResourcesWithHierarchy(
+          resources,
+          resource.resourceId,
+          level + 1
+        );
+        result.push(...children);
+      }
+    });
+    
+    return result;
+  };
+
+  const handleUnassignResource = async (resourceId: string) => {
+    if (!workspaceId || !role) {
+      toast.error("Missing workspace or role information");
+      return;
+    }
+
+    const resourceName = roleAssignments.find(g => g.resourceId === resourceId)?.resourceName || "this resource";
+    if (!confirm(`Are you sure you want to unassign all permissions for "${resourceName}"?`)) {
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      // Use DELETE endpoint to unassign all permissions for the resource
+      const result = await apiDelete(
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions?resourceId=${resourceId}`
+      );
+
+      if (result.success) {
+        toast.success("Resource unassigned successfully");
+        await loadRoleAssignments();
+        // Clear selection if it was the unassigned resource
+        if (selectedResourceId === resourceId) {
+          setSelectedResourceId("");
+          setSelectedPermissionIds([]);
+        }
+      } else {
+        toast.error(result.error?.message || "Failed to unassign resource");
+      }
+    } catch (error) {
+      console.error("Failed to unassign resource", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to unassign resource"
+      );
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   const handleAssignPermissions = async () => {
     if (!workspaceId || !role) {
       toast.error("Missing workspace or role information");
@@ -433,9 +537,22 @@ export default function AssignPermissionsPage() {
                   >
                     <div className="flex items-center justify-between">
                       <p className="font-medium">{group.resourceName}</p>
-                      <Badge variant="outline">
-                        {group.permissions.length} permissions
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {group.permissions.length} permissions
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUnassignResource(group.resourceId)}
+                          disabled={isAssigning}
+                          className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Unassign all permissions for this resource"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Unassign
+                        </Button>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {group.permissions.map((permission) => (
@@ -485,12 +602,12 @@ export default function AssignPermissionsPage() {
                       <SelectValue placeholder="Select a resource" />
                     </SelectTrigger>
                     <SelectContent>
-                      {allResources.map((resource) => (
+                      {flattenResourcesWithHierarchy(allResources).map((resource) => (
                         <SelectItem
                           key={resource.resourceId}
                           value={resource.resourceId}
                         >
-                          {resource.resourceName}
+                          {resource.displayName}
                         </SelectItem>
                       ))}
                     </SelectContent>
