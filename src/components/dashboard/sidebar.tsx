@@ -158,15 +158,27 @@ const getIconForWorkspace = (workspaceKey: string) =>
 
 // Helper function to remove /api prefix from URLs for navigation
 // Also handles temporary redirect for Waste Management workspace to localhost:3002
+// Adds workspaceId and token to external URLs
 const normalizeResourceUrl = (
   url: string | null | undefined,
-  workspaceName?: string
+  workspaceName?: string,
+  workspaceId?: string
 ): string => {
   if (!url || url === "#") return "#";
   
   // Temporary: Redirect Waste Management workspace to localhost:3002
   if (workspaceName?.toLowerCase() === "waste management") {
-    return "http://localhost:3002";
+    const params = new URLSearchParams();
+    if (workspaceId) {
+      params.append("workspaceId", workspaceId);
+    }
+    // Get token from auth store
+    const { token } = useAuthStore.getState();
+    if (token) {
+      params.append("token", token);
+    }
+    const queryString = params.toString();
+    return `http://localhost:3002${queryString ? `?${queryString}` : ""}`;
   }
   
   // Special case: /api/s should be /workspaces
@@ -177,6 +189,26 @@ const normalizeResourceUrl = (
   if (url.startsWith("/api/")) {
     return url.replace("/api", "");
   }
+  
+  // If it's an external URL (http/https), add workspaceId and token
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    try {
+      const urlObj = new URL(url);
+      if (workspaceId) {
+        urlObj.searchParams.set("workspaceId", workspaceId);
+      }
+      // Get token from auth store
+      const { token } = useAuthStore.getState();
+      if (token) {
+        urlObj.searchParams.set("token", token);
+      }
+      return urlObj.toString();
+    } catch (e) {
+      // If URL parsing fails, return as is
+      return url;
+    }
+  }
+  
   return url;
 };
 
@@ -854,7 +886,8 @@ export function Sidebar() {
                                               title: child.name,
                                               href: normalizeResourceUrl(
                                                 child.url,
-                                                workspaceMenu.workspaceName
+                                                workspaceMenu.workspaceName,
+                                                workspaceMenu.workspaceId
                                               ),
                                             }}
                                             isChild
@@ -876,7 +909,8 @@ export function Sidebar() {
                                         title: resource.name,
                                         href: normalizeResourceUrl(
                                           resource.url,
-                                          workspaceMenu.workspaceName
+                                          workspaceMenu.workspaceName,
+                                          workspaceMenu.workspaceId
                                         ),
                                       }}
                                       isChild

@@ -58,20 +58,27 @@ export default function DashboardPage() {
    * Gets application URL for workspace
    * Uses workspaceUrl from workspace if available, otherwise falls back to localhost:3001
    * Temporary: Redirects "Waste Management" workspace to localhost:3002
+   * Includes both token and workspaceId as query parameters
    */
   const getApplicationUrl = (workspace: Workspace): string => {
     if (!token) {
       return `/workspaces/${workspace.workspaceId}`;
     }
 
+    // Build query parameters
+    const params = new URLSearchParams({
+      token: token,
+      workspaceId: workspace.workspaceId,
+    });
+
     // Temporary: Redirect Waste Management workspace to localhost:3002
     if (workspace.name?.toLowerCase() === "waste management") {
-      return `http://localhost:3002?token=${encodeURIComponent(token)}`;
+      return `http://localhost:3002?${params.toString()}`;
     }
 
     // Use workspaceUrl from workspace if available
     const workspaceUrl = workspace.workspaceUrl || "http://localhost:3001";
-    return `${workspaceUrl}?token=${encodeURIComponent(token)}`;
+    return `${workspaceUrl}?${params.toString()}`;
   };
 
   const handleWorkspaceClick = (workspace: Workspace) => {
