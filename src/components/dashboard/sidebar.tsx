@@ -157,7 +157,6 @@ const getIconForWorkspace = (workspaceKey: string) =>
   getIconForKey(workspaceKey);
 
 // Helper function to remove /api prefix from URLs for navigation
-// Also handles temporary redirect for Waste Management workspace to localhost:3002
 // Adds workspaceId and token to external URLs
 const normalizeResourceUrl = (
   url: string | null | undefined,
@@ -165,21 +164,6 @@ const normalizeResourceUrl = (
   workspaceId?: string
 ): string => {
   if (!url || url === "#") return "#";
-  
-  // Temporary: Redirect Waste Management workspace to localhost:3002
-  if (workspaceName?.toLowerCase() === "waste management") {
-    const params = new URLSearchParams();
-    if (workspaceId) {
-      params.append("workspaceId", workspaceId);
-    }
-    // Get token from auth store
-    const { token } = useAuthStore.getState();
-    if (token) {
-      params.append("token", token);
-    }
-    const queryString = params.toString();
-    return `http://localhost:3002${queryString ? `?${queryString}` : ""}`;
-  }
   
   // Special case: /api/s should be /workspaces
   if (url === "/api/s" || url === "/s") {
