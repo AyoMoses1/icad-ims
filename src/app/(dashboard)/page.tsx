@@ -57,15 +57,22 @@ export default function DashboardPage() {
   /**
    * Gets application URL for workspace
    * Uses workspaceUrl from workspace if available, otherwise falls back to localhost:3001
+   * Includes both token and workspaceId as query parameters
    */
   const getApplicationUrl = (workspace: Workspace): string => {
     if (!token) {
       return `/workspaces/${workspace.workspaceId}`;
     }
 
+    // Build query parameters
+    const params = new URLSearchParams({
+      token: token,
+      workspaceId: workspace.workspaceId,
+    });
+
     // Use workspaceUrl from workspace if available
     const workspaceUrl = workspace.workspaceUrl || "http://localhost:3001";
-    return `${workspaceUrl}?token=${encodeURIComponent(token)}`;
+    return `${workspaceUrl}?${params.toString()}`;
   };
 
   const handleWorkspaceClick = (workspace: Workspace) => {

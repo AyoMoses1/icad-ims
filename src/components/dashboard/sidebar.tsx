@@ -157,8 +157,14 @@ const getIconForWorkspace = (workspaceKey: string) =>
   getIconForKey(workspaceKey);
 
 // Helper function to remove /api prefix from URLs for navigation
-const normalizeResourceUrl = (url: string | null | undefined): string => {
+// Adds workspaceId and token to external URLs
+const normalizeResourceUrl = (
+  url: string | null | undefined,
+  workspaceName?: string,
+  workspaceId?: string
+): string => {
   if (!url || url === "#") return "#";
+  
   // Special case: /api/s should be /workspaces
   if (url === "/api/s" || url === "/s") {
     return "/workspaces";
@@ -167,6 +173,26 @@ const normalizeResourceUrl = (url: string | null | undefined): string => {
   if (url.startsWith("/api/")) {
     return url.replace("/api", "");
   }
+  
+  // If it's an external URL (http/https), add workspaceId and token
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    try {
+      const urlObj = new URL(url);
+      if (workspaceId) {
+        urlObj.searchParams.set("workspaceId", workspaceId);
+      }
+      // Get token from auth store
+      const { token } = useAuthStore.getState();
+      if (token) {
+        urlObj.searchParams.set("token", token);
+      }
+      return urlObj.toString();
+    } catch (e) {
+      // If URL parsing fails, return as is
+      return url;
+    }
+  }
+  
   return url;
 };
 
@@ -501,20 +527,59 @@ export function Sidebar() {
   }) => {
     const active = isActive(item.href);
     const Icon = icon;
+    
+    // Check if URL is external (starts with http:// or https://)
+    const isExternal = item.href.startsWith("http://") || item.href.startsWith("https://");
+    
+    const handleClick = (e: React.MouseEvent) => {
+      if (isExternal) {
+        e.preventDefault();
+        window.location.href = item.href;
+      } else {
+        setMobileSidebarOpen(false);
+      }
+    };
 
+    const linkClassName = isChild
+      ? cn(
+          "flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors ml-6 relative",
+          "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-sidebar-muted-foreground/30",
+          "before:content-['']",
+          active
+            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            : "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted"
+        )
+      : cn(
+          "flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors",
+          active
+            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            : "text-sidebar-foreground hover:bg-sidebar-muted"
+        );
+
+    if (isExternal) {
+      // Use anchor tag for external URLs
+      return (
+        <a
+          href={item.href}
+          onClick={handleClick}
+          className={linkClassName}
+        >
+          {isChild && (
+            <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
+          )}
+          {Icon && <Icon className={isChild ? "h-4 w-4 flex-shrink-0" : "h-5 w-5 flex-shrink-0"} />}
+          <span>{item.title}</span>
+        </a>
+      );
+    }
+
+    // Use Next.js Link for internal URLs
     if (isChild) {
       return (
         <Link
           href={item.href}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors ml-6 relative",
-            "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-sidebar-muted-foreground/30",
-            "before:content-['']",
-            active
-              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-              : "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted"
-          )}
-          onClick={() => setMobileSidebarOpen(false)}
+          className={linkClassName}
+          onClick={handleClick}
         >
           <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
           {item.title}
@@ -525,13 +590,8 @@ export function Sidebar() {
     return (
       <Link
         href={item.href}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors",
-          active
-            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-            : "text-sidebar-foreground hover:bg-sidebar-muted"
-        )}
-        onClick={() => setMobileSidebarOpen(false)}
+        className={linkClassName}
+        onClick={handleClick}
       >
         {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
         <span>{item.title}</span>
@@ -809,7 +869,9 @@ export function Sidebar() {
                                             item={{
                                               title: child.name,
                                               href: normalizeResourceUrl(
-                                                child.url
+                                                child.url,
+                                                workspaceMenu.workspaceName,
+                                                workspaceMenu.workspaceId
                                               ),
                                             }}
                                             isChild
@@ -830,7 +892,9 @@ export function Sidebar() {
                                       item={{
                                         title: resource.name,
                                         href: normalizeResourceUrl(
-                                          resource.url
+                                          resource.url,
+                                          workspaceMenu.workspaceName,
+                                          workspaceMenu.workspaceId
                                         ),
                                       }}
                                       isChild

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiPost, apiGet } from "@/lib/api-client";
+import { apiPost, apiGet, apiDelete } from "@/lib/api-client";
 import { WorkspaceRolePermission } from "@/types";
 
 // GET /api/workspaces/[workspaceId]/roles/[roleId]/permissions - Get permissions assigned to role
@@ -103,6 +103,54 @@ export async function POST(
             error instanceof Error
               ? error.message
               : "Failed to assign permissions to role",
+        },
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/workspaces/[workspaceId]/roles/[roleId]/permissions - Unassign permissions from role for a resource
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { workspaceId: string; roleId: string } }
+) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const resourceId = searchParams.get("resourceId");
+
+    if (!resourceId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Resource ID is required",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Build query string with resourceId
+    const queryParams = new URLSearchParams();
+    queryParams.append("resourceId", resourceId);
+
+    const endpoint = `/api/workspaces/${params.workspaceId}/roles/${params.roleId}/permissions?${queryParams.toString()}`;
+
+    const response = await apiDelete(endpoint);
+
+    return NextResponse.json(response);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to unassign permissions from role",
         },
       },
       { status: 500 }
