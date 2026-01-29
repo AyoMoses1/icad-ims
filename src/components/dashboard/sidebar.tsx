@@ -164,7 +164,7 @@ const normalizeResourceUrl = (
   workspaceId?: string
 ): string => {
   if (!url || url === "#") return "#";
-  
+
   // Special case: /api/s should be /workspaces
   if (url === "/api/s" || url === "/s") {
     return "/workspaces";
@@ -173,7 +173,7 @@ const normalizeResourceUrl = (
   if (url.startsWith("/api/")) {
     return url.replace("/api", "");
   }
-  
+
   // If it's an external URL (http/https), add workspaceId and token
   if (url.startsWith("http://") || url.startsWith("https://")) {
     try {
@@ -192,7 +192,7 @@ const normalizeResourceUrl = (
       return url;
     }
   }
-  
+
   return url;
 };
 
@@ -253,8 +253,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { workspaces, currentWorkspace, setCurrentWorkspace, setWorkspaces } =
-    useWorkspaceStore();
+  const {
+    workspaces,
+    currentWorkspace,
+    setCurrentWorkspace,
+    setWorkspaces,
+    clearWorkspaceData,
+  } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
@@ -488,8 +493,8 @@ export function Sidebar() {
       // Continue with logout even if API call fails
       console.error("Logout - API call failed:", error);
     } finally {
-      // Always clear local session and redirect
-      console.log("Logout - Clearing local session and redirecting...");
+      // Clear workspace state in memory, then auth (logout clears all app storage)
+      clearWorkspaceData();
       logout();
       router.push("/auth/signin");
     }
@@ -527,10 +532,11 @@ export function Sidebar() {
   }) => {
     const active = isActive(item.href);
     const Icon = icon;
-    
+
     // Check if URL is external (starts with http:// or https://)
-    const isExternal = item.href.startsWith("http://") || item.href.startsWith("https://");
-    
+    const isExternal =
+      item.href.startsWith("http://") || item.href.startsWith("https://");
+
     const handleClick = (e: React.MouseEvent) => {
       if (isExternal) {
         e.preventDefault();
@@ -559,15 +565,17 @@ export function Sidebar() {
     if (isExternal) {
       // Use anchor tag for external URLs
       return (
-        <a
-          href={item.href}
-          onClick={handleClick}
-          className={linkClassName}
-        >
+        <a href={item.href} onClick={handleClick} className={linkClassName}>
           {isChild && (
             <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
           )}
-          {Icon && <Icon className={isChild ? "h-4 w-4 flex-shrink-0" : "h-5 w-5 flex-shrink-0"} />}
+          {Icon && (
+            <Icon
+              className={
+                isChild ? "h-4 w-4 flex-shrink-0" : "h-5 w-5 flex-shrink-0"
+              }
+            />
+          )}
           <span>{item.title}</span>
         </a>
       );
@@ -576,11 +584,7 @@ export function Sidebar() {
     // Use Next.js Link for internal URLs
     if (isChild) {
       return (
-        <Link
-          href={item.href}
-          className={linkClassName}
-          onClick={handleClick}
-        >
+        <Link href={item.href} className={linkClassName} onClick={handleClick}>
           <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
           {item.title}
         </Link>
@@ -588,11 +592,7 @@ export function Sidebar() {
     }
 
     return (
-      <Link
-        href={item.href}
-        className={linkClassName}
-        onClick={handleClick}
-      >
+      <Link href={item.href} className={linkClassName} onClick={handleClick}>
         {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
         <span>{item.title}</span>
       </Link>
@@ -679,245 +679,252 @@ export function Sidebar() {
             <nav className="space-y-1">
               {/* Workspaces with their menus from /api/menu endpoint */}
               {workspaceMenus.length > 0 && (
-            <>
-              {workspaceMenus.map((workspaceMenu) => {
-                const workspaceResources = workspaceMenu.resources || [];
-                const isWorkspaceExpanded = expandedWorkspaces.includes(
-                  workspaceMenu.workspaceId
-                );
-                const isWorkspaceActive =
-                  currentWorkspace?.workspaceId === workspaceMenu.workspaceId;
-                const isOwner = isWorkspaceOwner(
-                  userInfo,
-                  workspaceMenu.workspaceId
-                );
+                <>
+                  {workspaceMenus.map((workspaceMenu) => {
+                    const workspaceResources = workspaceMenu.resources || [];
+                    const isWorkspaceExpanded = expandedWorkspaces.includes(
+                      workspaceMenu.workspaceId
+                    );
+                    const isWorkspaceActive =
+                      currentWorkspace?.workspaceId ===
+                      workspaceMenu.workspaceId;
+                    const isOwner = isWorkspaceOwner(
+                      userInfo,
+                      workspaceMenu.workspaceId
+                    );
 
-                // Debug: Log ownership check
-                if (process.env.NODE_ENV === "development") {
-                  console.log(
-                    `[Sidebar] Workspace "${workspaceMenu.workspaceName}" (${workspaceMenu.workspaceId}):`,
-                    {
-                      isOwner,
-                      hasUserInfo: !!userInfo,
-                      userInfoRoles: userInfo ? (userInfo as any).roles : null,
+                    // Debug: Log ownership check
+                    if (process.env.NODE_ENV === "development") {
+                      console.log(
+                        `[Sidebar] Workspace "${workspaceMenu.workspaceName}" (${workspaceMenu.workspaceId}):`,
+                        {
+                          isOwner,
+                          hasUserInfo: !!userInfo,
+                          userInfoRoles: userInfo
+                            ? (userInfo as any).roles
+                            : null,
+                        }
+                      );
                     }
-                  );
-                }
 
-                // Create workspace object for setCurrentWorkspace
-                const workspace: Workspace = {
-                  workspaceId: workspaceMenu.workspaceId,
-                  name: workspaceMenu.workspaceName,
-                  description: "",
-                  workspaceUrl: workspaceMenu.workspaceUrl,
-                  isActive: true,
-                  isDeleted: false,
-                  color: undefined,
-                  createdBy: "",
-                  createdAt: "",
-                  updatedAt: "",
-                };
+                    // Create workspace object for setCurrentWorkspace
+                    const workspace: Workspace = {
+                      workspaceId: workspaceMenu.workspaceId,
+                      name: workspaceMenu.workspaceName,
+                      description: "",
+                      workspaceUrl: workspaceMenu.workspaceUrl,
+                      isActive: true,
+                      isDeleted: false,
+                      color: undefined,
+                      createdBy: "",
+                      createdAt: "",
+                      updatedAt: "",
+                    };
 
-                return (
-                  <div
-                    key={workspaceMenu.workspaceId}
-                    className="relative group"
-                  >
-                    <div className="flex items-center gap-2 w-full min-w-0">
-                      <button
-                        onClick={async () => {
-                          setCurrentWorkspace(workspace);
-                          await toggleWorkspace(workspaceMenu.workspaceId);
-
-                          // Fetch permissions when workspace is selected (as per integration guide)
-                          try {
-                            await workspacePermissionService.getWorkspacePermissions(
-                              workspaceMenu.workspaceId,
-                              false
-                            );
-                            // Emit workspace changed event for other components
-                            if (typeof window !== "undefined") {
-                              window.dispatchEvent(
-                                new CustomEvent("workspaceChanged", {
-                                  detail: {
-                                    workspaceId: workspaceMenu.workspaceId,
-                                    workspace,
-                                  },
-                                })
-                              );
-                            }
-                          } catch (error) {
-                            console.error(
-                              `Failed to fetch permissions for workspace ${workspaceMenu.workspaceId}:`,
-                              error
-                            );
-                          }
-                        }}
-                        className={cn(
-                          "flex items-center justify-between px-3 py-2.5 text-xs rounded-lg transition-colors min-w-0 flex-shrink",
-                          isWorkspaceActive || isWorkspaceExpanded
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                            : "text-sidebar-foreground hover:bg-sidebar-muted",
-                          "flex-1 max-w-[calc(100%-3rem)]"
-                        )}
+                    return (
+                      <div
+                        key={workspaceMenu.workspaceId}
+                        className="relative group"
                       >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {(() => {
-                            const WorkspaceIcon = getIconForWorkspace(
-                              workspaceMenu.workspaceId ||
-                                workspaceMenu.workspaceName
-                            );
-                            return (
-                              <div
-                                className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0"
-                                style={{
-                                  backgroundColor: `#6366F11A`, // light tint
-                                  color: "#6366F1",
-                                }}
-                              >
-                                <WorkspaceIcon className="h-3.5 w-3.5" />
-                              </div>
-                            );
-                          })()}
-                          <span className="text-left truncate text-xs">
-                            {workspaceMenu.workspaceName}
-                          </span>
-                        </div>
+                        <div className="flex items-center gap-2 w-full min-w-0">
+                          <button
+                            onClick={async () => {
+                              setCurrentWorkspace(workspace);
+                              await toggleWorkspace(workspaceMenu.workspaceId);
 
-                        {isWorkspaceExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
-                        )}
-                      </button>
-                      {/* Settings icon - only show for workspace owners, but not for admin users */}
-                      {isOwner && !userInfo?.isAdmin && (
-                        <Link
-                          href={`/workspaces/${workspaceMenu.workspaceId}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCurrentWorkspace(workspace);
-                            setMobileSidebarOpen(false);
-                          }}
-                          className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted transition-colors border border-sidebar-border"
-                          title="Manage workspace"
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Link>
-                      )}
-                    </div>
-                    {isWorkspaceExpanded && workspaceResources.length > 0 && (
-                      <div className="mt-1 space-y-1 ml-2">
-                        {workspaceResources.map((resource) => {
-                          const hasChildren =
-                            resource.children && resource.children.length > 0;
-                          const isResourceExpanded = expandedItems.includes(
-                            resource.resourceId
-                          );
-
-                          return (
-                            <div key={resource.resourceId}>
-                              {hasChildren ? (
-                                <>
-                                  <button
-                                    onClick={() =>
-                                      toggleExpand(resource.resourceId)
-                                    }
-                                    className={cn(
-                                      "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg transition-colors ml-6 relative",
-                                      "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-sidebar-muted-foreground/30",
-                                      isResourceExpanded ||
-                                        isChildActive(
-                                          resource.children.map((c) => ({
-                                            title: c.name,
-                                            href: c.url || "#",
-                                          }))
-                                        )
-                                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                        : "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted"
-                                    )}
+                              // Fetch permissions when workspace is selected (as per integration guide)
+                              try {
+                                await workspacePermissionService.getWorkspacePermissions(
+                                  workspaceMenu.workspaceId,
+                                  false
+                                );
+                                // Emit workspace changed event for other components
+                                if (typeof window !== "undefined") {
+                                  window.dispatchEvent(
+                                    new CustomEvent("workspaceChanged", {
+                                      detail: {
+                                        workspaceId: workspaceMenu.workspaceId,
+                                        workspace,
+                                      },
+                                    })
+                                  );
+                                }
+                              } catch (error) {
+                                console.error(
+                                  `Failed to fetch permissions for workspace ${workspaceMenu.workspaceId}:`,
+                                  error
+                                );
+                              }
+                            }}
+                            className={cn(
+                              "flex items-center justify-between px-3 py-2.5 text-xs rounded-lg transition-colors min-w-0 flex-shrink",
+                              isWorkspaceActive || isWorkspaceExpanded
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                : "text-sidebar-foreground hover:bg-sidebar-muted",
+                              "flex-1 max-w-[calc(100%-3rem)]"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {(() => {
+                                const WorkspaceIcon = getIconForWorkspace(
+                                  workspaceMenu.workspaceId ||
+                                    workspaceMenu.workspaceName
+                                );
+                                return (
+                                  <div
+                                    className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0"
+                                    style={{
+                                      backgroundColor: `#6366F11A`, // light tint
+                                      color: "#6366F1",
+                                    }}
                                   >
-                                    <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
-                                    <div className="flex items-center gap-2">
-                                      {(() => {
+                                    <WorkspaceIcon className="h-3.5 w-3.5" />
+                                  </div>
+                                );
+                              })()}
+                              <span className="text-left truncate text-xs">
+                                {workspaceMenu.workspaceName}
+                              </span>
+                            </div>
+
+                            {isWorkspaceExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
+                            )}
+                          </button>
+                          {/* Settings icon - only show for workspace owners, but not for admin users */}
+                          {isOwner && !userInfo?.isAdmin && (
+                            <Link
+                              href={`/workspaces/${workspaceMenu.workspaceId}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentWorkspace(workspace);
+                                setMobileSidebarOpen(false);
+                              }}
+                              className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted transition-colors border border-sidebar-border"
+                              title="Manage workspace"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Link>
+                          )}
+                        </div>
+                        {isWorkspaceExpanded &&
+                          workspaceResources.length > 0 && (
+                            <div className="mt-1 space-y-1 ml-2">
+                              {workspaceResources.map((resource) => {
+                                const hasChildren =
+                                  resource.children &&
+                                  resource.children.length > 0;
+                                const isResourceExpanded =
+                                  expandedItems.includes(resource.resourceId);
+
+                                return (
+                                  <div key={resource.resourceId}>
+                                    {hasChildren ? (
+                                      <>
+                                        <button
+                                          onClick={() =>
+                                            toggleExpand(resource.resourceId)
+                                          }
+                                          className={cn(
+                                            "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg transition-colors ml-6 relative",
+                                            "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-sidebar-muted-foreground/30",
+                                            isResourceExpanded ||
+                                              isChildActive(
+                                                resource.children.map((c) => ({
+                                                  title: c.name,
+                                                  href: c.url || "#",
+                                                }))
+                                              )
+                                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                              : "text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted"
+                                          )}
+                                        >
+                                          <span className="absolute left-0 top-1/2 w-3 h-px bg-sidebar-muted-foreground/30" />
+                                          <div className="flex items-center gap-2">
+                                            {(() => {
+                                              const ResourceIcon =
+                                                getIconForResource(
+                                                  resource.resourceId
+                                                );
+                                              return (
+                                                <ResourceIcon className="h-4 w-4 flex-shrink-0" />
+                                              );
+                                            })()}
+                                            <span className="text-left">
+                                              {resource.name}
+                                            </span>
+                                          </div>
+                                          {isResourceExpanded ? (
+                                            <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
+                                          ) : (
+                                            <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+                                          )}
+                                        </button>
+                                        {isResourceExpanded && (
+                                          <div className="mt-1 space-y-1">
+                                            {resource.children.map((child) => {
+                                              const ChildIcon =
+                                                getIconForResource(
+                                                  child.resourceId
+                                                );
+                                              return (
+                                                <NavLink
+                                                  key={child.resourceId}
+                                                  item={{
+                                                    title: child.name,
+                                                    href: normalizeResourceUrl(
+                                                      child.url,
+                                                      workspaceMenu.workspaceName,
+                                                      workspaceMenu.workspaceId
+                                                    ),
+                                                  }}
+                                                  isChild
+                                                  icon={ChildIcon}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      (() => {
                                         const ResourceIcon = getIconForResource(
                                           resource.resourceId
                                         );
                                         return (
-                                          <ResourceIcon className="h-4 w-4 flex-shrink-0" />
-                                        );
-                                      })()}
-                                      <span className="text-left">
-                                        {resource.name}
-                                      </span>
-                                    </div>
-                                    {isResourceExpanded ? (
-                                      <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
-                                    ) : (
-                                      <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
-                                    )}
-                                  </button>
-                                  {isResourceExpanded && (
-                                    <div className="mt-1 space-y-1">
-                                      {resource.children.map((child) => {
-                                        const ChildIcon = getIconForResource(
-                                          child.resourceId
-                                        );
-                                        return (
                                           <NavLink
-                                            key={child.resourceId}
                                             item={{
-                                              title: child.name,
+                                              title: resource.name,
                                               href: normalizeResourceUrl(
-                                                child.url,
+                                                resource.url,
                                                 workspaceMenu.workspaceName,
                                                 workspaceMenu.workspaceId
                                               ),
                                             }}
                                             isChild
-                                            icon={ChildIcon}
+                                            icon={ResourceIcon}
                                           />
                                         );
-                                      })}
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                (() => {
-                                  const ResourceIcon = getIconForResource(
-                                    resource.resourceId
-                                  );
-                                  return (
-                                    <NavLink
-                                      item={{
-                                        title: resource.name,
-                                        href: normalizeResourceUrl(
-                                          resource.url,
-                                          workspaceMenu.workspaceName,
-                                          workspaceMenu.workspaceId
-                                        ),
-                                      }}
-                                      isChild
-                                      icon={ResourceIcon}
-                                    />
-                                  );
-                                })()
-                              )}
+                                      })()
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
+                          )}
+                        {isWorkspaceExpanded &&
+                          workspaceResources.length === 0 && (
+                            <div className="ml-6 px-3 py-2 text-xs text-sidebar-muted-foreground">
+                              No menu items available
+                            </div>
+                          )}
                       </div>
-                    )}
-                    {isWorkspaceExpanded && workspaceResources.length === 0 && (
-                      <div className="ml-6 px-3 py-2 text-xs text-sidebar-muted-foreground">
-                        No menu items available
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
+                    );
+                  })}
+                </>
+              )}
             </nav>
           </>
         )}

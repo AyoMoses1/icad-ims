@@ -154,8 +154,9 @@ async function refreshAccessToken(): Promise<string | null> {
 
 /**
  * Gets a valid token, refreshing if necessary
+ * Exported for use by services that need to make authenticated requests to external APIs
  */
-async function getValidToken(): Promise<string | null> {
+export async function getValidToken(): Promise<string | null> {
   if (isTokenExpired()) {
     return await refreshAccessToken();
   }
@@ -327,14 +328,17 @@ export async function apiPatch<T>(
 
 /**
  * DELETE request helper
+ * Optionally supports a request body for endpoints that require it
  */
 export async function apiDelete<T>(
   endpoint: string,
+  body?: unknown,
   options?: { headers?: Record<string, string> }
 ): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, {
     method: "DELETE",
     headers: options?.headers,
+    body: body ? JSON.stringify(body) : undefined,
   });
 }
 

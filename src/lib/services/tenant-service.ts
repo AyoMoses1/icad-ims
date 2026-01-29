@@ -3,7 +3,7 @@
  */
 
 import { apiGet, apiPost, type ApiResponse } from "@/lib/api-client";
-import type { TenantDto, SwitchTenantRequestDto } from "@/types";
+import type { TenantDto, SwitchTenantResponseDto } from "@/types";
 
 /**
  * Get tenant by ID
@@ -61,13 +61,22 @@ export async function getMyTenants(): Promise<ApiResponse<TenantDto[]>> {
 
 /**
  * Switch active tenant context
+ * Endpoint: POST /iam/api/v1/users/me/tenants/{tenantId}/switch
+ *
+ * After switching:
+ * - A new access token and refresh token are issued with the new tenant ID in claims
+ * - The Userinfo endpoint reflects the tenant context (owner vs assist mode)
+ *
+ * Headers required:
+ * - Authorization: Bearer {access_token}
+ * - X-Refresh-Token: {refresh_token} (required for token generation)
+ *
+ * Response includes new tokens and user summary with the new tenant context
  */
 export async function switchTenant(
   tenantId: string,
   refreshToken?: string
-): Promise<
-  ApiResponse<{ token?: string; accessToken?: string; [key: string]: unknown }>
-> {
+): Promise<ApiResponse<SwitchTenantResponseDto>> {
   // Get refresh token from auth store if not provided
   let tokenToUse = refreshToken;
   if (!tokenToUse && typeof window !== "undefined") {
@@ -110,14 +119,14 @@ export async function switchTenant(
       body: JSON.stringify({}),
     });
 
-    const data: ApiResponse<{
-      token?: string;
-      accessToken?: string;
-      [key: string]: unknown;
-    }> = await response.json();
+    const data: ApiResponse<SwitchTenantResponseDto> = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || "Failed to switch tenant");
+      return {
+        success: false,
+        message: data.message || "Failed to switch tenant",
+        error: data.error,
+      };
     }
 
     // Handle nested response structure
@@ -137,6 +146,10 @@ export async function switchTenant(
     return data;
   } catch (error) {
     console.error("Error switching tenant:", error);
-    throw error;
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to switch tenant",
+    };
   }
 }

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { User, UserWithFullName, AuthSession } from "@/types";
 import { getUserFullName } from "@/lib/mock-data";
-import { safeLocalStorage } from "@/lib/utils";
+import { safeLocalStorage, clearAppStorage } from "@/lib/utils";
 
 interface AuthState {
   // State
@@ -13,12 +13,29 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
 
+  // Tenant switching state (assist mode)
+  isSwitched: boolean;
+  isInOwnTenant: boolean;
+  switchedTenantId: string | null;
+  switchedUserId: string | null;
+  switchedUserName: string | null;
+  switchedUserEmail: string | null;
+
   // Actions
   setSession: (session: AuthSession) => void;
   setUser: (user: User) => void;
   updateUser: (updates: Partial<User>) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
+  setSwitchedTenantState: (state: {
+    isSwitched: boolean;
+    isInOwnTenant: boolean;
+    switchedTenantId?: string | null;
+    switchedUserId?: string | null;
+    switchedUserName?: string | null;
+    switchedUserEmail?: string | null;
+  }) => void;
+  clearSwitchedTenantState: () => void;
 
   // Computed
   hasValidSession: () => boolean;
@@ -34,6 +51,14 @@ export const useAuthStore = create<AuthState>()(
       expiresAt: null,
       isAuthenticated: false,
       isLoading: true,
+
+      // Tenant switching state (assist mode)
+      isSwitched: false,
+      isInOwnTenant: true,
+      switchedTenantId: null,
+      switchedUserId: null,
+      switchedUserName: null,
+      switchedUserEmail: null,
 
       // Actions
       setSession: (session: AuthSession) => {
@@ -90,13 +115,49 @@ export const useAuthStore = create<AuthState>()(
           expiresAt: null,
           isAuthenticated: false,
           isLoading: false,
+          // Clear tenant switching state
+          isSwitched: false,
+          isInOwnTenant: true,
+          switchedTenantId: null,
+          switchedUserId: null,
+          switchedUserName: null,
+          switchedUserEmail: null,
         });
-        // Clear from storage
-        safeLocalStorage.removeItem("auth-storage");
+        // Clear all app storage to avoid caching stale tenant/workspace
+        clearAppStorage();
       },
 
       setLoading: (loading: boolean) => {
         set({ isLoading: loading });
+      },
+
+      /**
+       * Set tenant switching state (assist mode)
+       * Called after successful tenant switch with data from userinfo
+       */
+      setSwitchedTenantState: (state) => {
+        set({
+          isSwitched: state.isSwitched,
+          isInOwnTenant: state.isInOwnTenant,
+          switchedTenantId: state.switchedTenantId ?? null,
+          switchedUserId: state.switchedUserId ?? null,
+          switchedUserName: state.switchedUserName ?? null,
+          switchedUserEmail: state.switchedUserEmail ?? null,
+        });
+      },
+
+      /**
+       * Clear tenant switching state (return to own tenant)
+       */
+      clearSwitchedTenantState: () => {
+        set({
+          isSwitched: false,
+          isInOwnTenant: true,
+          switchedTenantId: null,
+          switchedUserId: null,
+          switchedUserName: null,
+          switchedUserEmail: null,
+        });
       },
 
       // Computed
@@ -219,6 +280,13 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         expiresAt: state.expiresAt,
         isAuthenticated: state.isAuthenticated,
+        // Tenant switching state
+        isSwitched: state.isSwitched,
+        isInOwnTenant: state.isInOwnTenant,
+        switchedTenantId: state.switchedTenantId,
+        switchedUserId: state.switchedUserId,
+        switchedUserName: state.switchedUserName,
+        switchedUserEmail: state.switchedUserEmail,
       }),
       onRehydrateStorage: () => (state, error) => {
         // After rehydration, set loading to false
@@ -303,3 +371,17 @@ export const useUser = () => useAuthStore((state) => state.user);
 export const useIsAuthenticated = () =>
   useAuthStore((state) => state.isAuthenticated);
 export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
+
+// Tenant switching selectors
+export const useIsSwitched = () => useAuthStore((state) => state.isSwitched);
+export const useIsInOwnTenant = () =>
+  useAuthStore((state) => state.isInOwnTenant);
+export const useSwitchedTenantInfo = () =>
+  useAuthStore((state) => ({
+    isSwitched: state.isSwitched,
+    isInOwnTenant: state.isInOwnTenant,
+    switchedTenantId: state.switchedTenantId,
+    switchedUserId: state.switchedUserId,
+    switchedUserName: state.switchedUserName,
+    switchedUserEmail: state.switchedUserEmail,
+  }));

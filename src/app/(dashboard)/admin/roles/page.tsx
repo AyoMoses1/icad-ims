@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  MoreHorizontal,
-  Shield,
-  ShieldCheck,
-  ShieldX,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -40,8 +32,14 @@ import {
   ConfirmDialog,
   LoadingPage,
 } from "@/components/shared";
-import { AdminRoleDto } from "@/types";
-import { formatDate } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AdminRoleDto, AdminRoleListItemDto } from "@/types";
 import { apiGetAuth } from "@/lib/api-client";
 import type { UserInfo } from "@/types";
 import { useWorkspaceStore } from "@/store";
@@ -55,12 +53,14 @@ import {
 
 export default function AdminRolesPage() {
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
-  const [roles, setRoles] = useState<AdminRoleDto[]>([]);
+  const [roles, setRoles] = useState<AdminRoleListItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<AdminRoleDto | null>(null);
+  const [selectedListItem, setSelectedListItem] =
+    useState<AdminRoleListItemDto | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -152,6 +152,10 @@ export default function AdminRolesPage() {
     fetchUserInfoAndWorkspace();
   }, [currentWorkspace, setCurrentWorkspace]);
 
+  const handleWorkspaceChange = (newWorkspaceId: string) => {
+    setWorkspaceId(newWorkspaceId);
+  };
+
   useEffect(() => {
     if (workspaceId) {
       loadRoles();
@@ -172,20 +176,19 @@ export default function AdminRolesPage() {
     setIsCreateOpen(true);
   };
 
-  const handleEdit = async (role: AdminRoleDto) => {
+  const handleEdit = async (role: AdminRoleListItemDto) => {
     if (!workspaceId) {
       toast.error("Please select a workspace");
       return;
     }
     try {
-      const result = await getAdminRoleById(role.adminRoleId, workspaceId);
+      const result = await getAdminRoleById(role.workspaceRoleId, workspaceId);
       if (result.success && result.data) {
         setSelectedRole(result.data);
         setFormData({
           roleName: result.data.roleName || "",
           roleCode: result.data.roleCode || "",
-          roleDescription:
-            result.data.description || result.data.roleDescription || "",
+          roleDescription: result.data.roleDescription || "",
         });
         setIsEditOpen(true);
       }
@@ -194,8 +197,8 @@ export default function AdminRolesPage() {
     }
   };
 
-  const handleDelete = (role: AdminRoleDto) => {
-    setSelectedRole(role);
+  const handleDelete = (role: AdminRoleListItemDto) => {
+    setSelectedListItem(role);
     setIsDeleteOpen(true);
   };
 
@@ -246,7 +249,7 @@ export default function AdminRolesPage() {
     setIsSubmitting(true);
     try {
       const result = await updateAdminRole(
-        selectedRole.adminRoleId,
+        selectedRole.workspaceRoleId,
         workspaceId,
         {
           roleName: formData.roleName,
@@ -274,19 +277,19 @@ export default function AdminRolesPage() {
   };
 
   const handleSubmitDelete = async () => {
-    if (!selectedRole || !workspaceId) return;
+    if (!selectedListItem || !workspaceId) return;
 
     setIsSubmitting(true);
     try {
       const result = await deleteAdminRole(
-        selectedRole.adminRoleId,
+        selectedListItem.workspaceRoleId,
         workspaceId
       );
 
       if (result.success) {
         toast.success("Admin role deleted successfully");
         setIsDeleteOpen(false);
-        setSelectedRole(null);
+        setSelectedListItem(null);
         loadRoles();
       } else {
         toast.error(result.message || "Failed to delete admin role");
@@ -301,7 +304,7 @@ export default function AdminRolesPage() {
     }
   };
 
-  const columns: DataTableColumn<AdminRoleDto>[] = [
+  const columns: DataTableColumn<AdminRoleListItemDto>[] = [
     {
       id: "roleName",
       header: "Role Name",
@@ -314,62 +317,19 @@ export default function AdminRolesPage() {
       ),
     },
     {
-      id: "roleCode",
-      header: "Role Code",
-      accessorKey: "roleCode",
+      id: "workspaceRoleId",
+      header: "Role ID",
+      accessorKey: "workspaceRoleId",
       cell: (row) => (
-        <span className="text-muted-foreground">{row.roleCode || "—"}</span>
-      ),
-    },
-    {
-      id: "description",
-      header: "Description",
-      accessorKey: "description",
-      cell: (row) => (
-        <span className="text-muted-foreground line-clamp-1">
-          {row.description || "—"}
+        <span className="text-muted-foreground text-xs font-mono">
+          {row.workspaceRoleId.substring(0, 8)}...
         </span>
       ),
     },
     {
-      id: "isSystemRole",
+      id: "type",
       header: "Type",
-      cell: (row) => (
-        <Badge variant={row.isSystemRole ? "default" : "secondary"}>
-          {row.isSystemRole ? "System Role" : "Custom Role"}
-        </Badge>
-      ),
-    },
-    {
-      id: "isActive",
-      header: "Status",
-      cell: (row) => (
-        <Badge
-          variant={row.isActive ? "success" : "secondary"}
-          className="flex items-center gap-1"
-        >
-          {row.isActive ? (
-            <>
-              <ShieldCheck className="h-3 w-3" />
-              Active
-            </>
-          ) : (
-            <>
-              <ShieldX className="h-3 w-3" />
-              Inactive
-            </>
-          )}
-        </Badge>
-      ),
-    },
-    {
-      id: "dateCreated",
-      header: "Created",
-      cell: (row) => (
-        <span className="text-sm text-muted-foreground">
-          {row.dateCreated ? formatDate(row.dateCreated) : "—"}
-        </span>
-      ),
+      cell: () => <Badge variant="secondary">Custom Role</Badge>,
     },
     {
       id: "actions",
@@ -389,7 +349,6 @@ export default function AdminRolesPage() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => handleDelete(row)}
-              disabled={row.isSystemRole}
               className="text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -443,6 +402,32 @@ export default function AdminRolesPage() {
         }
       />
 
+      {/* Workspace selector - choose which workspace to manage roles for */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="space-y-2 min-w-[200px]">
+          <Label htmlFor="admin-roles-workspace">Workspace</Label>
+          <Select
+            value={workspaceId ?? ""}
+            onValueChange={handleWorkspaceChange}
+          >
+            <SelectTrigger id="admin-roles-workspace">
+              <SelectValue placeholder="Select workspace" />
+            </SelectTrigger>
+            <SelectContent>
+              {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                  {ws.workspaceName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground self-end pb-2">
+          Roles below are for the selected workspace. Create Role adds a role to
+          this workspace.
+        </p>
+      </div>
+
       <DataTable
         columns={columns}
         data={roles}
@@ -456,10 +441,17 @@ export default function AdminRolesPage() {
           <DialogHeader>
             <DialogTitle>Create Admin Role</DialogTitle>
             <DialogDescription>
-              Create a new admin role. System roles cannot be deleted.
+              Create a new admin role for <strong>{workspaceName}</strong>.
+              System roles cannot be deleted.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+              Role will be created in workspace:{" "}
+              <strong className="text-foreground">{workspaceName}</strong>. To
+              create in a different workspace, cancel and select another
+              workspace above first.
+            </div>
             <div className="space-y-2">
               <Label htmlFor="roleName">
                 Role Name <span className="text-destructive">*</span>
@@ -588,8 +580,8 @@ export default function AdminRolesPage() {
         onOpenChange={setIsDeleteOpen}
         title="Delete Admin Role"
         description={
-          selectedRole
-            ? `Are you sure you want to delete "${selectedRole.roleName}"? This action cannot be undone.`
+          selectedListItem
+            ? `Are you sure you want to delete "${selectedListItem.roleName}"? This action cannot be undone.`
             : ""
         }
         confirmLabel="Delete"
