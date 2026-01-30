@@ -339,6 +339,22 @@ export async function apiDelete<T>(
 }
 
 /**
+ * DELETE request helper that supports a JSON body
+ * (Some APIs accept bodies on DELETE for batch operations)
+ */
+export async function apiDeleteWithBody<T>(
+  endpoint: string,
+  body?: unknown,
+  options?: { headers?: Record<string, string> }
+): Promise<ApiResponse<T>> {
+  return apiClient<T>(endpoint, {
+    method: "DELETE",
+    body: body ? JSON.stringify(body) : undefined,
+    headers: options?.headers,
+  });
+}
+
+/**
  * POST request with form-urlencoded body (for OAuth token endpoints)
  */
 export async function apiPostForm<T>(
