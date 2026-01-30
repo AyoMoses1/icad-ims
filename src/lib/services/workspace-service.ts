@@ -9,7 +9,11 @@ import {
   apiDelete,
   type ApiResponse,
 } from "@/lib/api-client";
-import type { Workspace, PaginatedResponse } from "@/types";
+import type {
+  Workspace,
+  PaginatedResponse,
+  SimpleDomainRoleDto,
+} from "@/types";
 
 const API_BASE = "/api/workspaces";
 
@@ -156,4 +160,33 @@ export async function switchWorkspace(
   }
 
   return response as ApiResponse<{ token?: string; [key: string]: unknown }>;
+}
+
+/**
+ * Get domain roles for a workspace
+ * Domain roles are custom non-admin roles (IsAdmin = false AND IsSystemRole = false)
+ * Examples: WCO, WRF, MEMBER, VESSEL_OPERATOR
+ * URL: GET /api/workspaces/{workspaceId}/roles/domain
+ */
+export async function getDomainRoles(
+  workspaceId: string
+): Promise<ApiResponse<SimpleDomainRoleDto[]>> {
+  const response = await apiGet<SimpleDomainRoleDto[]>(
+    `${API_BASE}/${workspaceId}/roles/domain`
+  );
+
+  if (response.success && response.data) {
+    if ((response.data as any).data) {
+      return {
+        success: true,
+        data: (response.data as any).data,
+      };
+    }
+    return {
+      success: true,
+      data: Array.isArray(response.data) ? response.data : [],
+    };
+  }
+
+  return response as ApiResponse<SimpleDomainRoleDto[]>;
 }

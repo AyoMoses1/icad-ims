@@ -80,7 +80,8 @@ import {
   getAdminRoleById,
   assignPermissionsToAdminRole,
 } from "@/lib/services/admin-role-service";
-import { AdminRoleDto } from "@/types";
+import { getWcoCompanies } from "@/lib/services/wco-service";
+import { AdminRoleListItemDto, WcoCompanyDto } from "@/types";
 import {
   extractPermissionAssignments,
   groupPermissionAssignments,
@@ -121,6 +122,7 @@ export default function AdminUsersPage() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [workspaceFilter, setWorkspaceFilter] = useState<string>(""); // Selected workspace for filtering
   const [showFilters, setShowFilters] = useState(false);
 
   const [formDataWithRole, setFormDataWithRole] = useState({
@@ -132,13 +134,18 @@ export default function AdminUsersPage() {
     workspaceRoles: [] as Array<{
       workspaceId: string;
       roleIds: string[];
-      availableRoles: AdminRoleDto[];
+      availableRoles: AdminRoleListItemDto[];
     }>,
   });
   const [workspaceRolesMap, setWorkspaceRolesMap] = useState<
-    Record<string, AdminRoleDto[]>
+    Record<string, AdminRoleListItemDto[]>
   >({});
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [wcoCompanies, setWcoCompanies] = useState<WcoCompanyDto[]>([]);
+  const [wcoCompaniesLoading, setWcoCompaniesLoading] = useState(false);
+  const [wcoCompaniesError, setWcoCompaniesError] = useState<string | null>(
+    null
+  );
   const [workspaceResources, setWorkspaceResources] = useState<
     WorkspaceResource[]
   >([]);
@@ -155,16 +162,14 @@ export default function AdminUsersPage() {
   });
   const [isManageAccessOpen, setIsManageAccessOpen] = useState(false);
   const [selectedAccessRoleId, setSelectedAccessRoleId] = useState("");
-  const [selectedAccessResourceId, setSelectedAccessResourceId] =
-    useState("");
+  const [selectedAccessResourceId, setSelectedAccessResourceId] = useState("");
   const [selectedAccessPermissionIds, setSelectedAccessPermissionIds] =
     useState<string[]>([]);
   const [roleAccessSummary, setRoleAccessSummary] = useState<
     RolePermissionGroup[]
   >([]);
   const [isLoadingRoleAccess, setIsLoadingRoleAccess] = useState(false);
-  const [isSubmittingPermissions, setIsSubmittingPermissions] =
-    useState(false);
+  const [isSubmittingPermissions, setIsSubmittingPermissions] = useState(false);
 
   // Fetch userinfo and determine workspace ID
   useEffect(() => {
@@ -213,6 +218,7 @@ export default function AdminUsersPage() {
 
         if (targetWorkspaceId) {
           setWorkspaceId(targetWorkspaceId);
+          setWorkspaceFilter(targetWorkspaceId); // Initialize workspace filter
         } else {
           toast.error(
             "No admin workspace available. You need admin access to at least one workspace."
@@ -226,6 +232,13 @@ export default function AdminUsersPage() {
 
     fetchUserInfoAndWorkspace();
   }, [currentWorkspace]);
+
+  // Handle workspace filter change
+  const handleWorkspaceFilterChange = (newWorkspaceId: string) => {
+    setWorkspaceFilter(newWorkspaceId);
+    setWorkspaceId(newWorkspaceId);
+    setPageNumber(1); // Reset to first page when workspace changes
+  };
 
   useEffect(() => {
     if (workspaceId) {
@@ -325,9 +338,8 @@ export default function AdminUsersPage() {
 
   const loadPermissionsList = async (): Promise<Permission[]> => {
     try {
-      const result = await apiGet<PaginatedResponse<Permission>>(
-        "/api/permissions"
-      );
+      const result =
+        await apiGet<PaginatedResponse<Permission>>("/api/permissions");
       if (result.success && result.data) {
         const permissionsData = Array.isArray(result.data)
           ? (result.data as Permission[])
@@ -372,11 +384,13 @@ export default function AdminUsersPage() {
     }
 
     // Check if WCO_EMPLOYEE role is assigned and validate wcoId
+    // Note: List API only returns workspaceRoleId and roleName, checking by name
     const hasWcoRole = formDataWithRole.workspaceRoles.some((wr) => {
       const roles = workspaceRolesMap[wr.workspaceId] || [];
       return wr.roleIds.some((roleId) => {
-        const role = roles.find((r) => r.adminRoleId === roleId);
-        return role?.roleCode === "WCO_EMPLOYEE";
+        const role = roles.find((r) => r.workspaceRoleId === roleId);
+        // Check by role name since list API doesn't return roleCode
+        return role?.roleName?.toLowerCase().includes("wco");
       });
     });
 
@@ -580,15 +594,11 @@ export default function AdminUsersPage() {
     try {
       const result = await getAllAdminRoles(targetWorkspaceId);
       if (result.success && result.data) {
-        // Map the API response to handle both workspaceRoleId and adminRoleId
-        const mappedRoles = result.data.map((role: any) => ({
-          ...role,
-          adminRoleId: role.workspaceRoleId || role.adminRoleId,
-          description: role.roleDescription || role.description,
-        }));
+        // API returns AdminRoleListItemDto[] with workspaceRoleId and roleName
+        const roles = result.data;
         setWorkspaceRolesMap((prev) => ({
           ...prev,
-          [targetWorkspaceId]: mappedRoles,
+          [targetWorkspaceId]: roles,
         }));
       } else {
         toast.error(result.message || "Failed to load roles");
@@ -609,6 +619,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  const loadWcoCompanies = async () => {
+    setWcoCompaniesLoading(true);
+    setWcoCompaniesError(null);
+    try {
+      const result = await getWcoCompanies();
+      if (result.success && result.data) {
+        setWcoCompanies(result.data);
+      } else {
+        setWcoCompanies([]);
+        setWcoCompaniesError(result.message || "Failed to load WCO companies");
+      }
+    } catch (error) {
+      setWcoCompanies([]);
+      setWcoCompaniesError(
+        error instanceof Error ? error.message : "Failed to load WCO companies"
+      );
+    } finally {
+      setWcoCompaniesLoading(false);
+    }
+  };
+
   const handleOpenCreateWithRoleDialog = async () => {
     // Load roles for all available workspaces
     const workspaces =
@@ -624,6 +655,9 @@ export default function AdminUsersPage() {
     for (const ws of workspaces) {
       await loadRoles(ws.workspaceId);
     }
+
+    // Pre-load WCO companies for dropdown (when assigning WCO_EMPLOYEE)
+    loadWcoCompanies();
 
     setIsCreateWithRoleOpen(true);
   };
@@ -816,10 +850,10 @@ export default function AdminUsersPage() {
       const result = await assignPermissionsToAdminRole(
         selectedAccessRoleId,
         workspaceId,
-        selectedAccessPermissionIds.map((permissionId) => ({
+        {
           resourceId: selectedAccessResourceId,
-          permissionId,
-        }))
+          permissionIds: selectedAccessPermissionIds,
+        }
       );
 
       if (result.success) {
@@ -834,9 +868,7 @@ export default function AdminUsersPage() {
     } catch (error) {
       console.error("Failed to assign permissions", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to assign permissions"
+        error instanceof Error ? error.message : "Failed to assign permissions"
       );
     } finally {
       setIsSubmittingPermissions(false);
@@ -972,11 +1004,17 @@ export default function AdminUsersPage() {
     );
   }
 
+  // Get current workspace name for display
+  const currentWorkspaceName =
+    userInfo?.adminDetails?.adminWorkspaces?.find(
+      (ws) => ws.workspaceId === workspaceFilter
+    )?.workspaceName || workspaceName;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="User Management"
-        description="Manage users across all workspaces"
+        description={`Manage users in ${currentWorkspaceName || "workspace"}`}
         actions={
           <div className="flex gap-2">
             <Button
@@ -1005,6 +1043,12 @@ export default function AdminUsersPage() {
               onClick={() => {
                 setSearchQuery("");
                 setStatusFilter("all");
+                // Reset workspace filter to first available workspace
+                const firstWorkspaceId =
+                  userInfo?.adminDetails?.adminWorkspaces?.[0]?.workspaceId;
+                if (firstWorkspaceId) {
+                  handleWorkspaceFilterChange(firstWorkspaceId);
+                }
                 setShowFilters(false);
               }}
             >
@@ -1012,7 +1056,26 @@ export default function AdminUsersPage() {
               Clear
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Workspace Filter */}
+            <div className="space-y-2">
+              <Label>Workspace</Label>
+              <Select
+                value={workspaceFilter}
+                onValueChange={handleWorkspaceFilterChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                    <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                      {ws.workspaceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Search</Label>
               <Input
@@ -1324,9 +1387,10 @@ export default function AdminUsersPage() {
                 const selectedRoles = wr.roleIds || [];
                 const hasWcoRole = selectedRoles.some((roleId) => {
                   const role = availableRolesForWorkspace.find(
-                    (r) => r.adminRoleId === roleId
+                    (r) => r.workspaceRoleId === roleId
                   );
-                  return role?.roleCode === "WCO_EMPLOYEE";
+                  // Check by role name since list API doesn't return roleCode
+                  return role?.roleName?.toLowerCase().includes("wco");
                 });
 
                 return (
@@ -1407,16 +1471,14 @@ export default function AdminUsersPage() {
                             {availableRolesForWorkspace
                               .filter(
                                 (role) =>
-                                  !selectedRoles.includes(role.adminRoleId)
+                                  !selectedRoles.includes(role.workspaceRoleId)
                               )
                               .map((role) => (
                                 <SelectItem
-                                  key={role.adminRoleId}
-                                  value={role.adminRoleId}
+                                  key={role.workspaceRoleId}
+                                  value={role.workspaceRoleId}
                                 >
-                                  {role.roleName ||
-                                    role.roleCode ||
-                                    role.adminRoleId}
+                                  {role.roleName || role.workspaceRoleId}
                                 </SelectItem>
                               ))}
                           </SelectContent>
@@ -1426,7 +1488,7 @@ export default function AdminUsersPage() {
                           <div className="flex flex-wrap gap-2 mt-2">
                             {selectedRoles.map((roleId) => {
                               const role = availableRolesForWorkspace.find(
-                                (r) => r.adminRoleId === roleId
+                                (r) => r.workspaceRoleId === roleId
                               );
                               return (
                                 <Badge
@@ -1434,7 +1496,7 @@ export default function AdminUsersPage() {
                                   variant="secondary"
                                   className="flex items-center gap-1"
                                 >
-                                  {role?.roleName || role?.roleCode || roleId}
+                                  {role?.roleName || roleId}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1460,30 +1522,65 @@ export default function AdminUsersPage() {
               })}
             </div>
 
-            {/* WCO ID - shown if any workspace has WCO_EMPLOYEE role */}
+            {/* WCO Company - shown when Waste Management workspace has WCO_EMPLOYEE role */}
             {formDataWithRole.workspaceRoles.some((wr) => {
               const roles = workspaceRolesMap[wr.workspaceId] || [];
               return wr.roleIds.some((roleId) => {
-                const role = roles.find((r) => r.adminRoleId === roleId);
-                return role?.roleCode === "WCO_EMPLOYEE";
+                const role = roles.find((r) => r.workspaceRoleId === roleId);
+                // Check by role name since list API doesn't return roleCode
+                return role?.roleName?.toLowerCase().includes("wco");
               });
             }) && (
               <div className="space-y-2">
-                <Label htmlFor="withRole-wcoId">WCO ID *</Label>
-                <Input
-                  id="withRole-wcoId"
-                  placeholder="WCO Company ID (UUID)"
-                  value={formDataWithRole.wcoId}
-                  onChange={(e) =>
-                    setFormDataWithRole({
-                      ...formDataWithRole,
-                      wcoId: e.target.value,
-                    })
-                  }
-                />
+                <Label htmlFor="withRole-wcoId">WCO Company *</Label>
+                {wcoCompaniesLoading ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    Loading WCO companies...
+                  </p>
+                ) : wcoCompanies.length > 0 ? (
+                  <Select
+                    value={formDataWithRole.wcoId}
+                    onValueChange={(value) =>
+                      setFormDataWithRole({
+                        ...formDataWithRole,
+                        wcoId: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="withRole-wcoId">
+                      <SelectValue placeholder="Select WCO company" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wcoCompanies.map((wco) => (
+                        <SelectItem key={wco.id} value={wco.id}>
+                          {wco.name}
+                          {wco.code ? ` (${wco.code})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="withRole-wcoId"
+                    placeholder="WCO Company ID (UUID)"
+                    value={formDataWithRole.wcoId}
+                    onChange={(e) =>
+                      setFormDataWithRole({
+                        ...formDataWithRole,
+                        wcoId: e.target.value,
+                      })
+                    }
+                  />
+                )}
+                {wcoCompaniesError && (
+                  <p className="text-sm text-amber-600">
+                    {wcoCompaniesError}. Enter the WCO company ID (UUID)
+                    manually in the field above.
+                  </p>
+                )}
                 <p className="text-sm text-muted-foreground">
-                  Required when assigning WCO_EMPLOYEE role. The WCO company
-                  must exist and be active.
+                  Required when assigning WCO_EMPLOYEE role. Select the Waste
+                  Collection Operator (company) this user belongs to.
                 </p>
               </div>
             )}
@@ -1513,8 +1610,7 @@ export default function AdminUsersPage() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              Manage Access{" "}
-              {selectedUser ? `for ${selectedUser.fullName}` : ""}
+              Manage Access {selectedUser ? `for ${selectedUser.fullName}` : ""}
             </DialogTitle>
             <DialogDescription>
               Assign workspace resources and permissions to admin roles.
@@ -1534,10 +1630,10 @@ export default function AdminUsersPage() {
                   {workspaceId &&
                     (workspaceRolesMap[workspaceId] || []).map((role) => (
                       <SelectItem
-                        key={role.adminRoleId}
-                        value={role.adminRoleId}
+                        key={role.workspaceRoleId}
+                        value={role.workspaceRoleId}
                       >
-                        {role.roleName || role.roleCode || role.adminRoleId}
+                        {role.roleName || role.workspaceRoleId}
                       </SelectItem>
                     ))}
                 </SelectContent>

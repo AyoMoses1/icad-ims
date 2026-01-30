@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthStore, useWorkspaceStore } from "@/store";
 import { apiPostForm, apiGetAuth } from "@/lib/api-client";
+import { clearAppStorage } from "@/lib/utils";
 import { TokenResponse, UserInfo, User, UserStatus } from "@/types";
 
 const signInSchema = z.object({
@@ -53,6 +54,9 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
+      // Clear any previous session storage to avoid stale tenant/workspace cache
+      clearAppStorage();
+
       // Get OAuth credentials from environment variables
       const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
       const clientSecret = process.env.NEXT_PUBLIC_CLIENT_SECRET;

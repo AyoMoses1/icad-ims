@@ -447,6 +447,7 @@ export interface UserInfo {
   roles?: string[];
   // Admin fields
   isAdmin?: boolean;
+  isOwner?: boolean;
   adminDetails?: {
     isSystemAdmin: boolean;
     isWorkspaceAdmin: boolean;
@@ -462,6 +463,14 @@ export interface UserInfo {
       permissions: string[];
     }>;
   };
+  ownerDetails?: Record<string, unknown>;
+  // Tenant switching fields (assist mode)
+  isSwitched?: boolean;
+  isInOwnTenant?: boolean;
+  switchedTenantId?: string;
+  switchedUserId?: string;
+  switchedUserName?: string;
+  switchedUserEmail?: string;
   [key: string]: unknown; // Allow additional properties
 }
 
@@ -600,43 +609,110 @@ export interface SwitchTenantRequestDto {
   tenantId: string;
 }
 
+// Switch Tenant Response (LoginResponseDto format)
+export interface SwitchTenantResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    id: string;
+    userName: string;
+    email: string;
+    firstName: string;
+    middleName?: string | null;
+    lastName: string;
+    tenantId: string;
+  };
+}
+
+// ============================================================================
+// Domain Roles Types (Simple workspace roles for lookups)
+// ============================================================================
+
+export interface SimpleDomainRoleDto {
+  workspaceRoleId: string;
+  roleName: string;
+}
+
+// ============================================================================
+// WCO (Waste Collection Operator) Types – for admin user creation
+// ============================================================================
+
+/** WCO company item from Waste Management MasterData (for dropdown) */
+export interface WcoCompanyDto {
+  id: string;
+  name: string;
+  description?: string;
+  code?: string;
+}
+
 // ============================================================================
 // Admin Role Types
 // ============================================================================
 
+/**
+ * AdminRoleListItemDto - Returned by GET /api/admin-roles?workspaceId=...
+ * List endpoint only returns roleId and roleName (minimal response)
+ */
+export interface AdminRoleListItemDto {
+  workspaceRoleId: string;
+  roleName: string;
+}
+
+/**
+ * AdminRoleDto - Full admin role details
+ * Returned by GET /api/admin-roles/{id}?workspaceId=...
+ * Also returned by POST (create) and PUT (update) operations
+ */
 export interface AdminRoleDto {
-  adminRoleId: string;
-  workspaceRoleId?: string; // API may return workspaceRoleId instead
-  roleName?: string | null;
-  roleCode?: string | null;
-  description?: string | null;
-  isSystemRole: boolean;
-  isActive: boolean;
-  isDeleted: boolean;
-  createdBy?: string | null;
-  dateCreated?: string | null;
-  dateModified?: string | null;
-  modifiedBy?: string | null;
-  // Additional fields that may come from API
-  workspaceId?: string;
+  workspaceRoleId: string;
+  workspaceId: string;
   userWorkspaceId?: string;
+  roleName: string;
+  roleCode?: string | null;
   roleDescription?: string | null;
-  isAdmin?: boolean;
-  permissions?: any[];
+  isSystemRole: boolean;
+  isAdmin: boolean;
+  permissions?: AdminRolePermissionDto[];
+}
+
+/**
+ * Permission details within an admin role
+ */
+export interface AdminRolePermissionDto {
+  resourceId: string;
+  resourceName: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canImport: boolean;
+  canExport: boolean;
+  canApprove: boolean;
+  canManage: boolean;
+  canReject: boolean;
 }
 
 export interface CreateAdminRoleRequestDto {
-  roleName?: string | null;
+  roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
-  isAdmin?: boolean;
 }
 
 export interface UpdateAdminRoleRequestDto {
-  roleName?: string | null;
+  roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
-  isActive?: boolean;
+}
+
+/**
+ * Request body for assigning/unassigning permissions to an admin role
+ * Used by POST/DELETE /api/admin-roles/{id}/permissions
+ */
+export interface AssignPermissionsToRoleRequestDto {
+  resourceId: string;
+  permissionIds: string[];
 }
 
 // ============================================================================
