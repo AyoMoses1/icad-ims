@@ -6,11 +6,11 @@ import { ExternalLink } from "lucide-react";
 
 const SHIP_TRACKING_URL = "https://signin.wnwd.com/";
 
-export default function ShipTrackingPage() {
+export default function MaritimeIntelligencePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Ship Tracking"
+        title="Maritime Intelligence"
         description="Track vessels and maritime traffic"
       />
 
@@ -29,7 +29,7 @@ export default function ShipTrackingPage() {
         </div>
         <iframe
           src={SHIP_TRACKING_URL}
-          title="Ship Tracking - WNWD Sign In"
+          title="Maritime Intelligence - WNWD Sign In"
           className="w-full h-[calc(100vh-220px)] min-h-[500px] border-0"
           loading="lazy"
         />

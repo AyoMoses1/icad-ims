@@ -638,10 +638,10 @@ export function Sidebar() {
               icon={Mail}
             />
           )}
-          {/* Ship Tracking - Only show for non-admin users */}
+          {/* Maritime Intelligence - Only show for non-admin users */}
           {!userInfo?.isAdmin && (
             <NavLink
-              item={{ title: "Ship Tracking", href: "/ship-tracking" }}
+              item={{ title: "Maritime Intelligence", href: "/maritime-intelligence" }}
               icon={Ship}
             />
           )}
