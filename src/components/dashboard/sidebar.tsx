@@ -55,6 +55,7 @@ import {
   ImageIcon,
   Shield,
   FolderTree,
+  Ship,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -582,6 +583,13 @@ export function Sidebar() {
             <NavLink
               item={{ title: "Invitations", href: "/invitations" }}
               icon={Mail}
+            />
+          )}
+          {/* Maritime Intelligence - Only show for non-admin users */}
+          {!userInfo?.isAdmin && (
+            <NavLink
+              item={{ title: "Maritime Intelligence", href: "/maritime-intelligence" }}
+              icon={Ship}
             />
           )}
           {/* Admin Section - Only show if user is admin */}

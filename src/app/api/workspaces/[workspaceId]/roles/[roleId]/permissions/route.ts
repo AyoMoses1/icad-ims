@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiPost, apiGet, apiDelete } from "@/lib/api-client";
+import { apiPost, apiGet, apiDeleteWithBody } from "@/lib/api-client";
 import { WorkspaceRolePermission } from "@/types";
 
 // GET /api/workspaces/[workspaceId]/roles/[roleId]/permissions - Get permissions assigned to role
@@ -116,8 +116,31 @@ export async function DELETE(
   { params }: { params: { workspaceId: string; roleId: string } }
 ) {
   try {
-    const { searchParams } = new URL(request.url);
-    const resourceId = searchParams.get("resourceId");
+    // Read body; support both PascalCase and camelCase for robustness,
+    // but forward PascalCase (ResourceId, PermissionIds) to the backend.
+    let resourceId: string | null = null;
+    let permissionIds: string[] | undefined;
+
+    try {
+      const body = await request.json();
+      if (body && typeof body === "object") {
+        const candidateResourceId =
+          (body as any).ResourceId ?? (body as any).resourceId;
+        if (typeof candidateResourceId === "string") {
+          resourceId = candidateResourceId;
+        }
+
+        const candidatePermissionIds =
+          (body as any).PermissionIds ?? (body as any).permissionIds;
+        if (Array.isArray(candidatePermissionIds)) {
+          permissionIds = candidatePermissionIds.filter(
+            (id: unknown): id is string => typeof id === "string" && !!id
+          );
+        }
+      }
+    } catch {
+      // No / invalid JSON body
+    }
 
     if (!resourceId) {
       return NextResponse.json(
@@ -132,13 +155,18 @@ export async function DELETE(
       );
     }
 
-    // Build query string with resourceId
-    const queryParams = new URLSearchParams();
-    queryParams.append("resourceId", resourceId);
+    // Backend endpoint without query string; resource and permissions in body
+    const endpoint = `/api/workspaces/${params.workspaceId}/roles/${params.roleId}/permissions`;
 
-    const endpoint = `/api/workspaces/${params.workspaceId}/roles/${params.roleId}/permissions?${queryParams.toString()}`;
-
-    const response = await apiDelete(endpoint);
+    // Forward body using PascalCase to match the contract:
+    // {
+    //   "ResourceId": "...",
+    //   "PermissionIds": ["..."]
+    // }
+    const response = await apiDeleteWithBody(endpoint, {
+      ResourceId: resourceId,
+      PermissionIds: permissionIds,
+    });
 
     return NextResponse.json(response);
   } catch (error) {

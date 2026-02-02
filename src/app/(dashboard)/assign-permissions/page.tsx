@@ -31,7 +31,7 @@ import {
   getPermissionIdsForResource,
   type RolePermissionGroup,
 } from "@/lib/permission-utils";
-import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
+import { apiGet, apiPost, apiDeleteWithBody } from "@/lib/api-client";
 
 export default function AssignPermissionsPage() {
   const router = useRouter();
@@ -168,6 +168,7 @@ export default function AssignPermissionsPage() {
         setSelectedPermissionIds(
           getPermissionIdsForResource(firstResourceId, groups)
         );
+        console.log(selectedPermissionIds)
       }
     } catch (error) {
       console.error("Failed to load role", error);
@@ -375,9 +376,51 @@ export default function AssignPermissionsPage() {
 
     setIsAssigning(true);
     try {
-      // Use DELETE endpoint to unassign all permissions for the resource
-      const result = await apiDelete(
-        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions?resourceId=${resourceId}`
+      // Collect all permissionIds currently assigned to this resource for this role.
+      // Map permission names/codes to actual GUID permission IDs from the permissions list.
+      const group = roleAssignments.find((g) => g.resourceId === resourceId);
+      const permissionIds =
+        group?.permissions
+          .map((p) => {
+            // If permissionId is already a GUID, use it directly
+            const isGuid = (str: string) =>
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                str
+              );
+
+            if (p.permissionId && isGuid(p.permissionId)) {
+              return p.permissionId;
+            }
+
+            // Otherwise, look up the permission by name (case-insensitive) or code
+            const matchedPermission = permissions.find((perm) => {
+              if (p.permissionName && perm.permissionName) {
+                return (
+                  perm.permissionName.toLowerCase() ===
+                  p.permissionName.toLowerCase()
+                );
+              }
+              if (p.permissionCode && perm.permissionCode) {
+                return (
+                  perm.permissionCode.toLowerCase() ===
+                  p.permissionCode.toLowerCase()
+                );
+              }
+              return false;
+            });
+
+            return matchedPermission?.permissionId || null;
+          })
+          .filter((id): id is string => typeof id === "string" && !!id) || [];
+
+      // Use DELETE endpoint to unassign permissions for the resource.
+      // Pass ResourceId and PermissionIds (GUIDs) in the request body (PascalCase).
+      const result = await apiDeleteWithBody(
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions`,
+        {
+          ResourceId: resourceId,
+          PermissionIds: permissionIds,
+        }
       );
 
       if (result.success) {
