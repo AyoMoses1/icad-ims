@@ -72,9 +72,9 @@ export default function AdminWorkspacesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">(
-    "all"
-  );
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -88,13 +88,15 @@ export default function AdminWorkspacesPage() {
   const loadWorkspaces = async () => {
     setIsLoading(true);
     try {
-      const result = await apiGet<PaginatedResponse<Workspace>>(
+      const result = await apiGet<Workspace[] | PaginatedResponse<Workspace>>(
         "/api/workspaces?includeInactive=true"
       );
       if (result.success && result.data) {
-        const workspacesArray = (result.data.items || []).filter(
-          (ws) => !ws.isDeleted
-        );
+        // API may return data as a direct array or as { items: Workspace[] }
+        const rawList = Array.isArray(result.data)
+          ? result.data
+          : (result.data as PaginatedResponse<Workspace>).items || [];
+        const workspacesArray = rawList.filter((ws) => !ws.isDeleted);
         setWorkspacesLocal(workspacesArray);
         setWorkspaces(workspacesArray);
       } else {
@@ -298,7 +300,10 @@ export default function AdminWorkspacesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select value={activeFilter} onValueChange={(v: any) => setActiveFilter(v)}>
+        <Select
+          value={activeFilter}
+          onValueChange={(v: any) => setActiveFilter(v)}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -387,7 +392,9 @@ export default function AdminWorkspacesPage() {
                     </TableCell>
                     <TableCell>
                       {(workspace as any).code ? (
-                        <Badge variant="outline">{(workspace as any).code}</Badge>
+                        <Badge variant="outline">
+                          {(workspace as any).code}
+                        </Badge>
                       ) : (
                         "-"
                       )}
@@ -407,7 +414,11 @@ export default function AdminWorkspacesPage() {
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -429,7 +440,9 @@ export default function AdminWorkspacesPage() {
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
+                            onClick={() =>
+                              handleSwitchWorkspace(workspace.workspaceId)
+                            }
                           >
                             <ArrowRight className="mr-2 h-4 w-4" />
                             Switch to Workspace

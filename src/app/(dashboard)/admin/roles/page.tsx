@@ -474,7 +474,11 @@ export default function AdminRolesPage() {
     {
       id: "type",
       header: "Type",
-      cell: () => <Badge variant="secondary">Custom Role</Badge>,
+      cell: (row) => (
+        <Badge variant={row.isAdmin ? "default" : "secondary"}>
+          {row.isAdmin ? "Administrative" : "Domain Role"}
+        </Badge>
+      ),
     },
     {
       id: "actions",
@@ -487,10 +491,14 @@ export default function AdminRolesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleAssignPermissionsClick(row)}>
-              <Key className="mr-2 h-4 w-4" />
-              Assign Permissions
-            </DropdownMenuItem>
+            {row.isAdmin === false && (
+              <DropdownMenuItem
+                onClick={() => handleAssignPermissionsClick(row)}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                Assign Permissions
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => handleEdit(row)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit

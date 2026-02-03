@@ -659,11 +659,13 @@ export interface WcoCompanyDto {
 
 /**
  * AdminRoleListItemDto - Returned by GET /api/admin-roles?workspaceId=...
- * List endpoint only returns roleId and roleName (minimal response)
+ * List endpoint returns workspaceRoleId, roleName, and isAdmin
  */
 export interface AdminRoleListItemDto {
   workspaceRoleId: string;
   roleName: string;
+  /** When true, administrative role; when false, domain role (workspace-scoped, can have resource permissions). */
+  isAdmin?: boolean;
 }
 
 /**
