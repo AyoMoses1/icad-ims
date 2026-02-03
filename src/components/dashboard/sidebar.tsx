@@ -197,59 +197,6 @@ const normalizeResourceUrl = (
   return url;
 };
 
-// Helper function to check if user is OWNER of a workspace
-// Based on the user info response structure:
-// roles: [{ workspaceId: "...", tenants: [{ roles: [{ role: "OWNER" }] }] }]
-const isWorkspaceOwner = (
-  userInfo: UserInfo | null,
-  workspaceId: string
-): boolean => {
-  if (!userInfo) {
-    return false;
-  }
-
-  // Access roles from userInfo - it's a complex structure, not just string[]
-  const roles = (userInfo as any).roles;
-
-  if (!roles || !Array.isArray(roles)) {
-    return false;
-  }
-
-  // Find the role entry for this workspace (compare as strings to ensure exact match)
-  // Normalize UUIDs by trimming and converting to lowercase for comparison
-  const normalizedWorkspaceId = String(workspaceId).trim().toLowerCase();
-
-  const workspaceRole = roles.find((role: any) => {
-    const roleWorkspaceId = String(role.workspaceId || "")
-      .trim()
-      .toLowerCase();
-    return roleWorkspaceId === normalizedWorkspaceId;
-  });
-
-  if (!workspaceRole) {
-    return false;
-  }
-
-  if (!workspaceRole.tenants || !Array.isArray(workspaceRole.tenants)) {
-    return false;
-  }
-
-  // Check if any tenant has OWNER role
-  const isOwner = workspaceRole.tenants.some((tenant: any) => {
-    if (!tenant.roles || !Array.isArray(tenant.roles)) {
-      return false;
-    }
-    return tenant.roles.some((role: any) => {
-      const roleValue = String(role.role || role)
-        .trim()
-        .toUpperCase();
-      return roleValue === "OWNER";
-    });
-  });
-
-  return isOwner;
-};
-
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -696,24 +643,6 @@ export function Sidebar() {
                     const isWorkspaceActive =
                       currentWorkspace?.workspaceId ===
                       workspaceMenu.workspaceId;
-                    const isOwner = isWorkspaceOwner(
-                      userInfo,
-                      workspaceMenu.workspaceId
-                    );
-
-                    // Debug: Log ownership check
-                    if (process.env.NODE_ENV === "development") {
-                      console.log(
-                        `[Sidebar] Workspace "${workspaceMenu.workspaceName}" (${workspaceMenu.workspaceId}):`,
-                        {
-                          isOwner,
-                          hasUserInfo: !!userInfo,
-                          userInfoRoles: userInfo
-                            ? (userInfo as any).roles
-                            : null,
-                        }
-                      );
-                    }
 
                     // Create workspace object for setCurrentWorkspace
                     const workspace: Workspace = {

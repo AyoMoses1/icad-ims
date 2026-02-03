@@ -463,7 +463,13 @@ export interface UserInfo {
       permissions: string[];
     }>;
   };
-  ownerDetails?: Record<string, unknown>;
+  ownerDetails?: {
+    isOwner?: boolean;
+    ownerWorkspaces?: Array<{
+      workspaceId: string;
+      workspaceName: string;
+    }>;
+  };
   // Tenant switching fields (assist mode)
   isSwitched?: boolean;
   isInOwnTenant?: boolean;
