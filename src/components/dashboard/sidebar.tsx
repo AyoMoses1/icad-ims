@@ -801,8 +801,8 @@ export function Sidebar() {
                               <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
                             )}
                           </button>
-                          {/* Settings icon - only show for workspace owners, but not for admin users */}
-                          {isOwner && !userInfo?.isAdmin && (
+                          {/* Settings icon - show for any workspace the user has access to (non-admin users). Workspace page enforces edit permissions. */}
+                          {!userInfo?.isAdmin && (
                             <Link
                               href={`/workspaces/${workspaceMenu.workspaceId}`}
                               onClick={(e) => {
