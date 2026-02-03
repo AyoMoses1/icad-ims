@@ -730,23 +730,21 @@ export function Sidebar() {
                               <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 ml-1" />
                             )}
                           </button>
-                          {/* Settings icon - only when user is in own tenant, is owner, and not admin */}
-                          {userInfo?.isInOwnTenant &&
-                            userInfo?.isOwner &&
-                            !userInfo?.isAdmin && (
-                              <Link
-                                href={`/workspaces/${workspaceMenu.workspaceId}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCurrentWorkspace(workspace);
-                                  setMobileSidebarOpen(false);
-                                }}
-                                className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted transition-colors border border-sidebar-border"
-                                title="Manage workspace"
-                              >
-                                <Settings className="h-4 w-4" />
-                              </Link>
-                            )}
+                          {/* Settings icon - show for any workspace the user has access to (non-admin users). Workspace page enforces edit permissions. */}
+                          {!userInfo?.isAdmin && (
+                            <Link
+                              href={`/workspaces/${workspaceMenu.workspaceId}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentWorkspace(workspace);
+                                setMobileSidebarOpen(false);
+                              }}
+                              className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-muted transition-colors border border-sidebar-border"
+                              title="Manage workspace"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Link>
+                          )}
                         </div>
                         {isWorkspaceExpanded &&
                           workspaceResources.length > 0 && (
