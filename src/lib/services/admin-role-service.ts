@@ -49,17 +49,21 @@ export async function getAdminRoleById(
 }
 
 /**
- * Create a new admin role
+ * Create a new role (admin or domain).
  * URL: POST /api/admin-roles?workspaceId={workspaceId}
+ * - When data.isAdmin is false (domain role), workspaceId is required.
+ * - When data.isAdmin is true (administrative role), workspaceId is optional.
  * Permission: AdminRoles.create
  */
 export async function createAdminRole(
-  workspaceId: string,
-  data: CreateAdminRoleRequestDto
+  data: CreateAdminRoleRequestDto,
+  workspaceId?: string | null
 ): Promise<ApiResponse<AdminRoleDto>> {
-  const params = new URLSearchParams();
-  params.append("workspaceId", workspaceId);
-  return apiPost<AdminRoleDto>(`${API_BASE}?${params.toString()}`, data);
+  const url =
+    workspaceId != null && workspaceId !== ""
+      ? `${API_BASE}?${new URLSearchParams({ workspaceId }).toString()}`
+      : API_BASE;
+  return apiPost<AdminRoleDto>(url, data);
 }
 
 /**

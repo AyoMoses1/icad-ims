@@ -704,6 +704,8 @@ export interface CreateAdminRoleRequestDto {
   roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
+  /** When true, creates an administrative role. When false, creates a domain role tied to a workspace (workspaceId required). */
+  isAdmin: boolean;
 }
 
 export interface UpdateAdminRoleRequestDto {

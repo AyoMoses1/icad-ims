@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, MoreHorizontal, Shield } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  Shield,
+  Key,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -49,7 +56,10 @@ import {
   createAdminRole,
   updateAdminRole,
   deleteAdminRole,
+  assignPermissionsToAdminRole,
 } from "@/lib/services/admin-role-service";
+import { apiGet } from "@/lib/api-client";
+import type { WorkspaceResource, Permission, PaginatedResponse } from "@/types";
 
 export default function AdminRolesPage() {
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
@@ -69,7 +79,28 @@ export default function AdminRolesPage() {
     roleName: "",
     roleCode: "",
     roleDescription: "",
+    isAdmin: false,
+    createRoleWorkspaceId: "" as string,
   });
+
+  // Assign Permissions dialog (for domain roles only)
+  const [isAssignPermissionsOpen, setIsAssignPermissionsOpen] = useState(false);
+  const [assignPermissionsRole, setAssignPermissionsRole] =
+    useState<AdminRoleDto | null>(null);
+  const [assignResources, setAssignResources] = useState<WorkspaceResource[]>(
+    []
+  );
+  const [assignPermissionsList, setAssignPermissionsList] = useState<
+    Permission[]
+  >([]);
+  const [assignSelectedResourceId, setAssignSelectedResourceId] =
+    useState<string>("");
+  const [assignSelectedPermissionIds, setAssignSelectedPermissionIds] =
+    useState<string[]>([]);
+  const [isLoadingAssignPermissions, setIsLoadingAssignPermissions] =
+    useState(false);
+  const [isSubmittingAssignPermissions, setIsSubmittingAssignPermissions] =
+    useState(false);
 
   const loadRoles = async () => {
     if (!workspaceId) {
@@ -164,14 +195,12 @@ export default function AdminRolesPage() {
   }, [workspaceId]);
 
   const handleCreate = () => {
-    if (!workspaceId) {
-      toast.error("Please select a workspace");
-      return;
-    }
     setFormData({
       roleName: "",
       roleCode: "",
       roleDescription: "",
+      isAdmin: false,
+      createRoleWorkspaceId: workspaceId || "",
     });
     setIsCreateOpen(true);
   };
@@ -189,6 +218,8 @@ export default function AdminRolesPage() {
           roleName: result.data.roleName || "",
           roleCode: result.data.roleCode || "",
           roleDescription: result.data.roleDescription || "",
+          isAdmin: result.data.isAdmin ?? false,
+          createRoleWorkspaceId: result.data.workspaceId || workspaceId || "",
         });
         setIsEditOpen(true);
       }
@@ -203,35 +234,54 @@ export default function AdminRolesPage() {
   };
 
   const handleSubmitCreate = async () => {
-    if (!workspaceId) {
-      toast.error("Please select a workspace");
-      return;
-    }
-
     if (!formData.roleName.trim()) {
       toast.error("Role name is required");
       return;
     }
+    if (!formData.isAdmin) {
+      const wId = formData.createRoleWorkspaceId || workspaceId;
+      if (!wId) {
+        toast.error("Please select a workspace for this domain role");
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
-      const result = await createAdminRole(workspaceId, {
-        roleName: formData.roleName,
-        roleCode: formData.roleCode || null,
-        roleDescription: formData.roleDescription || null,
-      });
+      const workspaceIdForCreate = formData.isAdmin
+        ? undefined
+        : formData.createRoleWorkspaceId || workspaceId || undefined;
+      const result = await createAdminRole(
+        {
+          roleName: formData.roleName,
+          roleCode: formData.roleCode || null,
+          roleDescription: formData.roleDescription || null,
+          isAdmin: formData.isAdmin,
+        },
+        workspaceIdForCreate ?? null
+      );
 
       if (result.success) {
-        toast.success("Admin role created successfully");
+        toast.success(
+          formData.isAdmin
+            ? "Administrative role created"
+            : "Domain role created"
+        );
         setIsCreateOpen(false);
-        loadRoles();
+        if (workspaceIdForCreate && workspaceIdForCreate === workspaceId) {
+          loadRoles();
+        } else if (workspaceIdForCreate) {
+          loadRoles();
+        } else if (workspaceId) {
+          loadRoles();
+        }
       } else {
-        toast.error(result.message || "Failed to create admin role");
+        toast.error(result.message || "Failed to create role");
       }
     } catch (error) {
       console.error("Error creating role:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to create admin role"
+        error instanceof Error ? error.message : "Failed to create role"
       );
     } finally {
       setIsSubmitting(false);
@@ -273,6 +323,101 @@ export default function AdminRolesPage() {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAssignPermissionsClick = async (row: AdminRoleListItemDto) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
+    try {
+      const result = await getAdminRoleById(row.workspaceRoleId, workspaceId);
+      if (!result.success || !result.data) {
+        toast.error("Failed to load role details");
+        return;
+      }
+      const role = result.data;
+      if (role.isAdmin) {
+        toast.info(
+          "Administrative roles do not have resource-level permissions."
+        );
+        return;
+      }
+      setAssignPermissionsRole(role);
+      setAssignSelectedResourceId("");
+      setAssignSelectedPermissionIds([]);
+      setIsAssignPermissionsOpen(true);
+      setIsLoadingAssignPermissions(true);
+      try {
+        const [resourcesRes, permissionsRes] = await Promise.all([
+          apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+            `/api/workspaces/${role.workspaceId}/resources`
+          ),
+          apiGet<Permission[] | PaginatedResponse<Permission>>(
+            `/api/permissions`
+          ),
+        ]);
+        const resourcesData =
+          resourcesRes.success && resourcesRes.data
+            ? Array.isArray(resourcesRes.data)
+              ? resourcesRes.data
+              : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                  .items || []
+            : [];
+        const permissionsData =
+          permissionsRes.success && permissionsRes.data
+            ? Array.isArray(permissionsRes.data)
+              ? permissionsRes.data
+              : (permissionsRes.data as PaginatedResponse<Permission>).items ||
+                []
+            : [];
+        setAssignResources(resourcesData);
+        setAssignPermissionsList(permissionsData);
+      } finally {
+        setIsLoadingAssignPermissions(false);
+      }
+    } catch (error) {
+      console.error("Error loading role for assign permissions:", error);
+      toast.error("Failed to load role details");
+    }
+  };
+
+  const handleAssignPermissionsSubmit = async () => {
+    if (
+      !assignPermissionsRole ||
+      !assignSelectedResourceId ||
+      assignSelectedPermissionIds.length === 0
+    ) {
+      toast.error("Please select a resource and at least one permission");
+      return;
+    }
+    setIsSubmittingAssignPermissions(true);
+    try {
+      const result = await assignPermissionsToAdminRole(
+        assignPermissionsRole.workspaceRoleId,
+        assignPermissionsRole.workspaceId,
+        {
+          resourceId: assignSelectedResourceId,
+          permissionIds: assignSelectedPermissionIds,
+        }
+      );
+      if (result.success) {
+        toast.success("Permissions assigned successfully");
+        setIsAssignPermissionsOpen(false);
+        setAssignPermissionsRole(null);
+        setAssignSelectedResourceId("");
+        setAssignSelectedPermissionIds([]);
+        loadRoles();
+      } else {
+        toast.error(result.message || "Failed to assign permissions");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to assign permissions"
+      );
+    } finally {
+      setIsSubmittingAssignPermissions(false);
     }
   };
 
@@ -342,6 +487,10 @@ export default function AdminRolesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleAssignPermissionsClick(row)}>
+              <Key className="mr-2 h-4 w-4" />
+              Assign Permissions
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleEdit(row)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
@@ -375,14 +524,15 @@ export default function AdminRolesPage() {
     return <LoadingPage message="Loading workspace information..." />;
   }
 
-  if (!workspaceId) {
+  const hasAnyWorkspace =
+    (userInfo?.adminDetails?.adminWorkspaces?.length ?? 0) > 0;
+  if (!workspaceId && !hasAnyWorkspace) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-lg font-medium">No workspace available</p>
           <p className="text-sm text-muted-foreground mt-2">
-            You need admin access to at least one workspace to manage admin
-            roles.
+            You need admin access to at least one workspace to manage roles.
           </p>
         </div>
       </div>
@@ -439,19 +589,60 @@ export default function AdminRolesPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create Admin Role</DialogTitle>
+            <DialogTitle>Create Role</DialogTitle>
             <DialogDescription>
-              Create a new admin role for <strong>{workspaceName}</strong>.
-              System roles cannot be deleted.
+              Create an administrative role or a domain role tied to a
+              workspace. Domain roles can have resource-level permissions
+              assigned.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
-              Role will be created in workspace:{" "}
-              <strong className="text-foreground">{workspaceName}</strong>. To
-              create in a different workspace, cancel and select another
-              workspace above first.
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isAdmin"
+                checked={formData.isAdmin}
+                onCheckedChange={(checked) =>
+                  setFormData({
+                    ...formData,
+                    isAdmin: checked === true,
+                  })
+                }
+              />
+              <Label htmlFor="isAdmin" className="cursor-pointer">
+                Administrative role (no resource-level permissions)
+              </Label>
             </div>
+            {!formData.isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="createRoleWorkspace">
+                  Workspace <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={formData.createRoleWorkspaceId || undefined}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      createRoleWorkspaceId: value,
+                    })
+                  }
+                >
+                  <SelectTrigger id="createRoleWorkspace">
+                    <SelectValue placeholder="Select workspace for this role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                      <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                        {ws.workspaceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Domain roles are tied to a workspace. You can assign
+                  permissions after creating the role.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="roleName">
                 Role Name <span className="text-destructive">*</span>
@@ -462,7 +653,7 @@ export default function AdminRolesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, roleName: e.target.value })
                 }
-                placeholder="e.g., Workspace Administrator"
+                placeholder="e.g., VESSEL_OPERATOR or Workspace Administrator"
               />
             </div>
             <div className="space-y-2">
@@ -473,7 +664,7 @@ export default function AdminRolesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, roleCode: e.target.value })
                 }
-                placeholder="e.g., WORKSPACE_ADMIN"
+                placeholder="e.g., VESSEL_OPERATOR"
               />
             </div>
             <div className="space-y-2">
@@ -499,6 +690,136 @@ export default function AdminRolesPage() {
             </Button>
             <Button onClick={handleSubmitCreate} disabled={isSubmitting}>
               {isSubmitting ? "Creating..." : "Create Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Permissions Dialog (domain roles only) */}
+      <Dialog
+        open={isAssignPermissionsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignPermissionsRole(null);
+            setAssignSelectedResourceId("");
+            setAssignSelectedPermissionIds([]);
+          }
+          setIsAssignPermissionsOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assign Permissions</DialogTitle>
+            <DialogDescription>
+              {assignPermissionsRole
+                ? `Choose a resource and select the permissions to grant ${assignPermissionsRole.roleName}.`
+                : "Assign permissions to this role."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Resource</Label>
+              <Select
+                value={assignSelectedResourceId}
+                onValueChange={(value) => {
+                  setAssignSelectedResourceId(value);
+                  setAssignSelectedPermissionIds([]);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a resource" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignResources.map((resource) => (
+                    <SelectItem
+                      key={resource.resourceId}
+                      value={resource.resourceId}
+                    >
+                      {resource.resourceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Permissions</Label>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
+                {isLoadingAssignPermissions ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Loading...
+                  </p>
+                ) : assignPermissionsList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No permissions available
+                  </p>
+                ) : (
+                  assignPermissionsList.map((permission) => (
+                    <div
+                      key={permission.permissionId}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`assign-${permission.permissionId}`}
+                        checked={assignSelectedPermissionIds.includes(
+                          permission.permissionId
+                        )}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setAssignSelectedPermissionIds([
+                              ...assignSelectedPermissionIds,
+                              permission.permissionId,
+                            ]);
+                          } else {
+                            setAssignSelectedPermissionIds(
+                              assignSelectedPermissionIds.filter(
+                                (id) => id !== permission.permissionId
+                              )
+                            );
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`assign-${permission.permissionId}`}
+                        className="cursor-pointer flex-1"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {permission.permissionName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {permission.permissionCode}
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAssignPermissionsOpen(false);
+                setAssignPermissionsRole(null);
+                setAssignSelectedResourceId("");
+                setAssignSelectedPermissionIds([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignPermissionsSubmit}
+              disabled={
+                isSubmittingAssignPermissions ||
+                !assignSelectedResourceId ||
+                assignSelectedPermissionIds.length === 0
+              }
+            >
+              {isSubmittingAssignPermissions
+                ? "Assigning..."
+                : "Assign Permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>
