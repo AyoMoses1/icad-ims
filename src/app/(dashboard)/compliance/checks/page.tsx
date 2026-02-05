@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { CheckCircle } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Card, CardContent } from "@/components/ui/card";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus,
   Pencil,
@@ -111,16 +111,40 @@ export default function AdminRolesPage() {
     try {
       const result = await getAllAdminRoles(workspaceId);
 
-      if (result.success && result.data) {
-        setRoles(result.data);
-      } else {
+      if (!result.success) {
         toast.error(result.message || "Failed to load admin roles");
+        setRoles([]);
+        return;
       }
+
+      // Backend returns { data: [ { workspaceRoleId, roleName, isAdmin }, ... ] }
+      // API client may expose that as result.data = array or result.data = { data: array }
+      const raw = result.data as
+        | AdminRoleListItemDto[]
+        | { data?: AdminRoleListItemDto[] }
+        | null
+        | undefined;
+      const list: AdminRoleListItemDto[] = Array.isArray(raw)
+        ? raw
+        : raw &&
+            typeof raw === "object" &&
+            Array.isArray((raw as { data?: AdminRoleListItemDto[] }).data)
+          ? (raw as { data: AdminRoleListItemDto[] }).data
+          : [];
+
+      // Ensure every role has isAdmin so Type column and actions render correctly
+      const normalized: AdminRoleListItemDto[] = list.map((item) => ({
+        workspaceRoleId: item.workspaceRoleId ?? "",
+        roleName: item.roleName ?? "",
+        isAdmin: typeof item.isAdmin === "boolean" ? item.isAdmin : false,
+      }));
+      setRoles(normalized);
     } catch (error) {
       console.error("Error loading roles:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to load admin roles"
       );
+      setRoles([]);
     } finally {
       setIsLoading(false);
     }
@@ -338,13 +362,16 @@ export default function AdminRolesPage() {
         return;
       }
       const role = result.data;
-      if (role.isAdmin) {
-        toast.info(
-          "Administrative roles do not have resource-level permissions."
-        );
+      // For domain roles use role.workspaceId; for administrative roles use page's selected workspaceId
+      const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
+      if (!workspaceIdForPermissions) {
+        toast.error("Please select a workspace to assign permissions");
         return;
       }
-      setAssignPermissionsRole(role);
+      setAssignPermissionsRole({
+        ...role,
+        workspaceId: workspaceIdForPermissions,
+      });
       setAssignSelectedResourceId("");
       setAssignSelectedPermissionIds([]);
       setIsAssignPermissionsOpen(true);
@@ -352,7 +379,7 @@ export default function AdminRolesPage() {
       try {
         const [resourcesRes, permissionsRes] = await Promise.all([
           apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-            `/api/workspaces/${role.workspaceId}/resources`
+            `/api/workspaces/${workspaceIdForPermissions}/resources`
           ),
           apiGet<Permission[] | PaginatedResponse<Permission>>(
             `/api/permissions`
@@ -392,11 +419,18 @@ export default function AdminRolesPage() {
       toast.error("Please select a resource and at least one permission");
       return;
     }
+    // Use same endpoint for both administrative and domain roles
+    const workspaceIdForApi =
+      assignPermissionsRole.workspaceId || workspaceId || "";
+    if (!workspaceIdForApi) {
+      toast.error("Workspace context is required to assign permissions");
+      return;
+    }
     setIsSubmittingAssignPermissions(true);
     try {
       const result = await assignPermissionsToAdminRole(
         assignPermissionsRole.workspaceRoleId,
-        assignPermissionsRole.workspaceId,
+        workspaceIdForApi,
         {
           resourceId: assignSelectedResourceId,
           permissionIds: assignSelectedPermissionIds,
@@ -449,71 +483,89 @@ export default function AdminRolesPage() {
     }
   };
 
+  // Support both cell({ row }) and cell(row) so dropdown works with any DataTable impl
+  const getRow = (
+    param: AdminRoleListItemDto | { row: AdminRoleListItemDto }
+  ): AdminRoleListItemDto =>
+    param && typeof param === "object" && "row" in param && param.row
+      ? param.row
+      : (param as AdminRoleListItemDto);
+
   const columns: DataTableColumn<AdminRoleListItemDto>[] = [
     {
       id: "roleName",
       header: "Role Name",
       accessorKey: "roleName",
-      cell: (row) => (
-        <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{row.roleName || "N/A"}</span>
-        </div>
-      ),
+      cell: (param) => {
+        const row = getRow(param);
+        return (
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{row.roleName || "N/A"}</span>
+          </div>
+        );
+      },
     },
     {
       id: "workspaceRoleId",
       header: "Role ID",
       accessorKey: "workspaceRoleId",
-      cell: (row) => (
-        <span className="text-muted-foreground text-xs font-mono">
-          {row.workspaceRoleId.substring(0, 8)}...
-        </span>
-      ),
+      cell: (param) => {
+        const row = getRow(param);
+        return (
+          <span className="text-muted-foreground text-xs font-mono">
+            {row.workspaceRoleId.substring(0, 8)}...
+          </span>
+        );
+      },
     },
     {
       id: "type",
       header: "Type",
-      cell: (row) => (
-        <Badge variant={row.isAdmin ? "default" : "secondary"}>
-          {row.isAdmin ? "Administrative" : "Domain Role"}
-        </Badge>
-      ),
+      cell: (param) => {
+        const row = getRow(param);
+        return (
+          <Badge variant={row.isAdmin ? "default" : "secondary"}>
+            {row.isAdmin ? "Administrative" : "Domain Role"}
+          </Badge>
+        );
+      },
     },
     {
       id: "actions",
       header: "Actions",
-      cell: (row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {row.isAdmin === false && (
+      cell: (param) => {
+        const row = getRow(param);
+        return (
+          <DropdownMenu key={row?.workspaceRoleId ?? "actions"}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Role actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onClick={() => handleAssignPermissionsClick(row)}
               >
                 <Key className="mr-2 h-4 w-4" />
                 Assign Permissions
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => handleEdit(row)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => handleDelete(row)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+              <DropdownMenuItem onClick={() => handleEdit(row)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => handleDelete(row)}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
     },
   ];
 
