@@ -591,20 +591,13 @@ export default function RolePermissionsPage() {
         </div>
       </div>
 
-      {selectedRole?.isAdmin && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          Administrative roles do not have resource-level permissions; only
-          domain roles can be configured here.
-        </div>
-      )}
-
       {!selectedRole && workspaceId && (
         <div className="rounded-xl border border-border/80 bg-muted/30 px-4 py-8 text-center text-muted-foreground">
           Select a role to view and edit permissions.
         </div>
       )}
 
-      {selectedRole && !selectedRole.isAdmin && (
+      {selectedRole && (
         <>
           {isLoading ? (
             <LoadingPage message="Loading resources and permissions..." />
