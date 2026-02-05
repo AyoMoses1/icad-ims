@@ -1,0 +1,320 @@
+{
+  "description": "All page routes from mems-seafarer-frontend for IMS resource configuration. Use 'url' as workspace resource URL. Role keys: super_admin, training_institution, agent, seafarer.",
+  "routes": [
+    { "url": "/auth/signin", "name": "Sign In", "roles": [] },
+    { "url": "/auth/signup", "name": "Sign Up", "roles": [] },
+    { "url": "/auth/forgot-password", "name": "Forgot Password", "roles": [] },
+    { "url": "/auth/reset-password", "name": "Reset Password", "roles": [] },
+    { "url": "/auth/verify-email", "name": "Verify Email", "roles": [] },
+    { "url": "/", "name": "Home", "roles": ["super_admin", "seafarer"] },
+    {
+      "url": "/onboarding",
+      "name": "Onboarding",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/onboarding/seafarer",
+      "name": "Onboarding Seafarer",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/onboarding/institution",
+      "name": "Onboarding Institution",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/onboarding/comprehensive",
+      "name": "Onboarding Comprehensive",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/onboarding/status/pending",
+      "name": "Onboarding Pending",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/onboarding/status/rejected",
+      "name": "Onboarding Rejected",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/applications/apply",
+      "name": "Apply Application",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/dashboard",
+      "name": "Seafarer Dashboard",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/overview",
+      "name": "Seafarer Overview",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/add",
+      "name": "Add Seafarer",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/seafarer/registry",
+      "name": "Seafarer Registry",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/seafarer/applications",
+      "name": "Seafarer Applications",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/seafarer/applications/history",
+      "name": "Application History",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/seafarer/services",
+      "name": "Seafarer Services",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/seafarer/miis",
+      "name": "MIIS",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/profile/contact",
+      "name": "Profile Contact",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/profile/education",
+      "name": "Profile Education",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/seafarer/profile",
+      "name": "Seafarer Profile",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/agent/dashboard",
+      "name": "Agent Dashboard",
+      "roles": ["super_admin", "agent"]
+    },
+    {
+      "url": "/institution/dashboard",
+      "name": "Institution Dashboard",
+      "roles": ["super_admin", "training_institution"]
+    },
+    {
+      "url": "/institution/training-results",
+      "name": "Training Results",
+      "roles": ["super_admin", "training_institution"]
+    },
+    {
+      "url": "/institution/training-results/upload",
+      "name": "Upload Training Results",
+      "roles": ["super_admin", "training_institution"]
+    },
+    {
+      "url": "/institution/inspections",
+      "name": "Institution Inspections",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/institution/deficiencies",
+      "name": "Institution Deficiencies",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/admin/dashboard",
+      "name": "Admin Dashboard",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/onboarding",
+      "name": "Admin Onboarding",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/applications/review",
+      "name": "Applications Review",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/accreditations",
+      "name": "Admin Accreditations",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/accreditations/review",
+      "name": "Review Accreditations",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/inspections",
+      "name": "Admin Inspections",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/inspections/reports",
+      "name": "Inspection Reports",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/inspections/deficiencies",
+      "name": "Deficiency Reports",
+      "roles": ["super_admin"]
+    },
+    { "url": "/admin/audits", "name": "Audits", "roles": ["super_admin"] },
+    {
+      "url": "/admin/services",
+      "name": "Admin Services",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/services/create",
+      "name": "Create Service",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/requirement-lists",
+      "name": "Requirement Lists",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/admin/statistics",
+      "name": "Admin Statistics",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/profile-documents",
+      "name": "Profile Documents",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/documents",
+      "name": "Documents",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/institutions",
+      "name": "Institutions",
+      "roles": ["super_admin", "agent", "training_institution"]
+    },
+    {
+      "url": "/medical-institutes",
+      "name": "Medical Institutes",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/invoices/my-invoices",
+      "name": "My Invoices",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/invoices/management",
+      "name": "Invoice Management",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/invoices/payments",
+      "name": "Payments",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/accreditations",
+      "name": "Accreditations",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/accreditations/apply",
+      "name": "Apply Accreditation",
+      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+    },
+    {
+      "url": "/accreditations/stcw",
+      "name": "STCW Standards",
+      "roles": ["super_admin", "seafarer", "training_institution"]
+    },
+    {
+      "url": "/certificates",
+      "name": "Certificates",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/license-certification",
+      "name": "License Certification",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/license-certification/apply",
+      "name": "Apply License Certification",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/medical/services",
+      "name": "Medical Services",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/medical/appointments",
+      "name": "Medical Appointments",
+      "roles": ["super_admin", "seafarer"]
+    },
+    { "url": "/vessels", "name": "Vessels", "roles": ["super_admin"] },
+    { "url": "/ranks", "name": "Ranks", "roles": ["super_admin"] },
+    {
+      "url": "/nationalities",
+      "name": "Nationalities",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/onboarding-requirements",
+      "name": "Onboarding Requirements",
+      "roles": ["super_admin"]
+    },
+    {
+      "url": "/training",
+      "name": "Training",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/training/programs",
+      "name": "Training Programs",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/training/courses",
+      "name": "Training Courses",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/training/cohorts",
+      "name": "Training Cohorts",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/training/enroll",
+      "name": "Training Enroll",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/training/enrollments",
+      "name": "Training Enrollments",
+      "roles": ["super_admin", "seafarer"]
+    },
+    {
+      "url": "/staff/dashboard",
+      "name": "Staff Dashboard",
+      "roles": ["super_admin"]
+    }
+  ],
+  "roleRouteSummary": {
+    "super_admin": "All routes (assign all resources to this role)",
+    "seafarer": "Seafarer dashboard, profile, applications, services, invoices, accreditations, training, medical, onboarding",
+    "agent": "Agent dashboard, seafarer add/registry/applications/services, institutions, documents, accreditations, institution inspections/deficiencies, invoices",
+    "training_institution": "All agent routes plus institution dashboard, training results, training upload, accreditations/stcw"
+  }
+}

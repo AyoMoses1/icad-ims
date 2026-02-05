@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Plus,
   Pencil,
@@ -8,7 +9,6 @@ import {
   MoreHorizontal,
   Shield,
   Key,
-  Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,17 +66,23 @@ import {
   unassignPermissionsFromWorkspaceRole,
 } from "@/lib/services/admin-role-service";
 import { apiGet } from "@/lib/api-client";
-import type { WorkspaceResource, Permission, PaginatedResponse } from "@/types";
+import type {
+  WorkspaceResource,
+  Permission,
+  PaginatedResponse,
+  WorkspaceRole,
+} from "@/types";
 
 /**
  * Maps role's resource permission flags (canCreate, canRead, etc.) to permission IDs.
- * Matches permission codes case-insensitively (e.g. "Create", "Declarations.Create").
+ * Matches permission codes/names case-insensitively (e.g. "Create", "WorkspaceRoles.Create").
  */
 function getAssignedPermissionIdsForResource(
   rolePermission: AdminRolePermissionDto | undefined,
   allPermissions: Permission[]
 ): string[] {
   if (!rolePermission) return [];
+  if (!allPermissions?.length) return [];
 
   const actionToCodes: Record<string, string[]> = {
     canCreate: ["create"],
@@ -97,11 +103,17 @@ function getAssignedPermissionIdsForResource(
 
     for (const perm of allPermissions) {
       const codeLower = (perm.permissionCode || "").toLowerCase();
+      const nameLower = (perm.permissionName || "").toLowerCase();
       const matches = codes.some(
         (c) =>
           codeLower === c ||
           codeLower.endsWith(`.${c}`) ||
-          codeLower.endsWith(`_${c}`)
+          codeLower.endsWith(`_${c}`) ||
+          codeLower.includes(`.${c}.`) ||
+          codeLower.includes(`_${c}_`) ||
+          codeLower.startsWith(`${c}.`) ||
+          codeLower.startsWith(`${c}_`) ||
+          nameLower.includes(c)
       );
       if (matches && !assignedIds.includes(perm.permissionId)) {
         assignedIds.push(perm.permissionId);
@@ -147,8 +159,6 @@ export default function AdminRolesPage() {
     useState<string>("");
   const [assignSelectedPermissionIds, setAssignSelectedPermissionIds] =
     useState<string[]>([]);
-  const [isLoadingAssignPermissions, setIsLoadingAssignPermissions] =
-    useState(false);
   const [isSubmittingAssignPermissions, setIsSubmittingAssignPermissions] =
     useState(false);
 
@@ -168,8 +178,6 @@ export default function AdminRolesPage() {
   const [unassignSelectedPermissionIds, setUnassignSelectedPermissionIds] =
     useState<string[]>([]);
   const [unassignEntireResource, setUnassignEntireResource] = useState(false);
-  const [isLoadingUnassignPermissions, setIsLoadingUnassignPermissions] =
-    useState(false);
   const [isSubmittingUnassignPermissions, setIsSubmittingUnassignPermissions] =
     useState(false);
 
@@ -402,55 +410,98 @@ export default function AdminRolesPage() {
       toast.error("Please select a workspace");
       return;
     }
+    const loadingToastId = toast.loading(
+      "Loading resources and permissions..."
+    );
     try {
-      const result = await getAdminRoleById(row.workspaceRoleId, workspaceId);
+      const [result, roleWithPermsRes] = await Promise.all([
+        getAdminRoleById(row.workspaceRoleId, workspaceId),
+        apiGet<WorkspaceRole>(
+          `/api/workspaces/${workspaceId}/roles/${row.workspaceRoleId}`
+        ),
+      ]);
       if (!result.success || !result.data) {
+        toast.dismiss(loadingToastId);
         toast.error("Failed to load role details");
         return;
       }
       const role = result.data;
       const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
       if (!workspaceIdForPermissions) {
+        toast.dismiss(loadingToastId);
         toast.error("Please select a workspace to assign permissions");
         return;
       }
+      const rolePayload =
+        roleWithPermsRes.data ??
+        (roleWithPermsRes as { data?: { permissions?: unknown[] } })?.data;
+      const rawPermsArray = Array.isArray(
+        (rolePayload as { permissions?: unknown[] })?.permissions
+      )
+        ? (rolePayload as { permissions: unknown[] }).permissions
+        : (role.permissions ?? []);
+      const assignedPermissions: AdminRolePermissionDto[] = rawPermsArray.map(
+        (p: unknown) => {
+          const q = p as Record<string, unknown>;
+          return {
+            resourceId: String(q?.resourceId ?? ""),
+            resourceName: String(q?.resourceName ?? ""),
+            canCreate: !!q?.canCreate,
+            canRead: !!q?.canRead,
+            canUpdate: !!q?.canUpdate,
+            canDelete: !!q?.canDelete,
+            canImport: !!q?.canImport,
+            canExport: !!q?.canExport,
+            canApprove: !!q?.canApprove,
+            canManage: !!q?.canManage,
+            canReject: !!q?.canReject,
+          };
+        }
+      );
+
+      const [resourcesRes, permissionsRes] = await Promise.all([
+        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+          `/api/workspaces/${workspaceIdForPermissions}/resources`
+        ),
+        apiGet<Permission[] | PaginatedResponse<Permission>>(
+          `/api/permissions?pageSize=500`
+        ),
+      ]);
+      const resourcesData =
+        resourcesRes.success && resourcesRes.data
+          ? Array.isArray(resourcesRes.data)
+            ? resourcesRes.data
+            : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                .items || []
+          : [];
+      const permissionsData =
+        permissionsRes.success && permissionsRes.data
+          ? Array.isArray(permissionsRes.data)
+            ? permissionsRes.data
+            : (permissionsRes.data as PaginatedResponse<Permission>).items || []
+          : [];
       setAssignPermissionsRole({
         ...role,
         workspaceId: workspaceIdForPermissions,
+        permissions: assignedPermissions,
       });
-      setAssignSelectedResourceId("");
-      setAssignSelectedPermissionIds([]);
-      setIsAssignPermissionsOpen(true);
-      setIsLoadingAssignPermissions(true);
-      try {
-        const [resourcesRes, permissionsRes] = await Promise.all([
-          apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-            `/api/workspaces/${workspaceIdForPermissions}/resources`
-          ),
-          apiGet<Permission[] | PaginatedResponse<Permission>>(
-            `/api/permissions`
-          ),
-        ]);
-        const resourcesData =
-          resourcesRes.success && resourcesRes.data
-            ? Array.isArray(resourcesRes.data)
-              ? resourcesRes.data
-              : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
-                  .items || []
-            : [];
-        const permissionsData =
-          permissionsRes.success && permissionsRes.data
-            ? Array.isArray(permissionsRes.data)
-              ? permissionsRes.data
-              : (permissionsRes.data as PaginatedResponse<Permission>).items ||
-                []
-            : [];
-        setAssignResources(resourcesData);
-        setAssignPermissionsList(permissionsData);
-      } finally {
-        setIsLoadingAssignPermissions(false);
+      setAssignResources(resourcesData);
+      setAssignPermissionsList(permissionsData);
+      if (assignedPermissions.length > 0 && resourcesData.length > 0) {
+        const firstPerm = assignedPermissions[0];
+        const firstResourceId = firstPerm.resourceId;
+        setAssignSelectedResourceId(firstResourceId);
+        setAssignSelectedPermissionIds(
+          getAssignedPermissionIdsForResource(firstPerm, permissionsData)
+        );
+      } else {
+        setAssignSelectedResourceId("");
+        setAssignSelectedPermissionIds([]);
       }
+      toast.dismiss(loadingToastId);
+      setIsAssignPermissionsOpen(true);
     } catch (error) {
+      toast.dismiss(loadingToastId);
       console.error("Error loading role for assign permissions:", error);
       toast.error("Failed to load role details");
     }
@@ -499,56 +550,98 @@ export default function AdminRolesPage() {
       toast.error("Please select a workspace");
       return;
     }
+    const loadingToastId = toast.loading(
+      "Loading resources and permissions..."
+    );
     try {
-      const result = await getAdminRoleById(row.workspaceRoleId, workspaceId);
+      const [result, roleWithPermsRes] = await Promise.all([
+        getAdminRoleById(row.workspaceRoleId, workspaceId),
+        apiGet<WorkspaceRole>(
+          `/api/workspaces/${workspaceId}/roles/${row.workspaceRoleId}`
+        ),
+      ]);
       if (!result.success || !result.data) {
+        toast.dismiss(loadingToastId);
         toast.error("Failed to load role details");
         return;
       }
       const role = result.data;
       const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
       if (!workspaceIdForPermissions) {
+        toast.dismiss(loadingToastId);
         toast.error("Please select a workspace to unassign permissions");
         return;
       }
+      const rolePayload =
+        roleWithPermsRes.data ??
+        (roleWithPermsRes as { data?: { permissions?: unknown[] } })?.data;
+      const rawPermsArray = Array.isArray(
+        (rolePayload as { permissions?: unknown[] })?.permissions
+      )
+        ? (rolePayload as { permissions: unknown[] }).permissions
+        : (role.permissions ?? []);
+      const assignedPermissions: AdminRolePermissionDto[] = rawPermsArray.map(
+        (p: unknown) => {
+          const q = p as Record<string, unknown>;
+          return {
+            resourceId: String(q?.resourceId ?? ""),
+            resourceName: String(q?.resourceName ?? ""),
+            canCreate: !!q?.canCreate,
+            canRead: !!q?.canRead,
+            canUpdate: !!q?.canUpdate,
+            canDelete: !!q?.canDelete,
+            canImport: !!q?.canImport,
+            canExport: !!q?.canExport,
+            canApprove: !!q?.canApprove,
+            canManage: !!q?.canManage,
+            canReject: !!q?.canReject,
+          };
+        }
+      );
+
+      const [resourcesRes, permissionsRes] = await Promise.all([
+        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+          `/api/workspaces/${workspaceIdForPermissions}/resources`
+        ),
+        apiGet<Permission[] | PaginatedResponse<Permission>>(
+          `/api/permissions?pageSize=500`
+        ),
+      ]);
+      const resourcesData =
+        resourcesRes.success && resourcesRes.data
+          ? Array.isArray(resourcesRes.data)
+            ? resourcesRes.data
+            : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                .items || []
+          : [];
+      const permissionsData =
+        permissionsRes.success && permissionsRes.data
+          ? Array.isArray(permissionsRes.data)
+            ? permissionsRes.data
+            : (permissionsRes.data as PaginatedResponse<Permission>).items || []
+          : [];
       setUnassignPermissionsRole({
         ...role,
         workspaceId: workspaceIdForPermissions,
+        permissions: assignedPermissions,
       });
-      setUnassignSelectedResourceId("");
-      setUnassignSelectedPermissionIds([]);
-      setUnassignEntireResource(false);
-      setIsUnassignPermissionsOpen(true);
-      setIsLoadingUnassignPermissions(true);
-      try {
-        const [resourcesRes, permissionsRes] = await Promise.all([
-          apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-            `/api/workspaces/${workspaceIdForPermissions}/resources`
-          ),
-          apiGet<Permission[] | PaginatedResponse<Permission>>(
-            `/api/permissions`
-          ),
-        ]);
-        const resourcesData =
-          resourcesRes.success && resourcesRes.data
-            ? Array.isArray(resourcesRes.data)
-              ? resourcesRes.data
-              : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
-                  .items || []
-            : [];
-        const permissionsData =
-          permissionsRes.success && permissionsRes.data
-            ? Array.isArray(permissionsRes.data)
-              ? permissionsRes.data
-              : (permissionsRes.data as PaginatedResponse<Permission>).items ||
-                []
-            : [];
-        setUnassignResources(resourcesData);
-        setUnassignPermissionsList(permissionsData);
-      } finally {
-        setIsLoadingUnassignPermissions(false);
+      setUnassignResources(resourcesData);
+      setUnassignPermissionsList(permissionsData);
+      if (assignedPermissions.length > 0 && resourcesData.length > 0) {
+        const firstPerm = assignedPermissions[0];
+        setUnassignSelectedResourceId(firstPerm.resourceId);
+        setUnassignSelectedPermissionIds(
+          getAssignedPermissionIdsForResource(firstPerm, permissionsData)
+        );
+      } else {
+        setUnassignSelectedResourceId("");
+        setUnassignSelectedPermissionIds([]);
       }
+      setUnassignEntireResource(false);
+      toast.dismiss(loadingToastId);
+      setIsUnassignPermissionsOpen(true);
     } catch (error) {
+      toast.dismiss(loadingToastId);
       console.error("Error loading role for unassign permissions:", error);
       toast.error("Failed to load role details");
     }
@@ -683,15 +776,13 @@ export default function AdminRolesPage() {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleAssignPermissionsClick(row)}>
-              <Key className="mr-2 h-4 w-4" />
-              Assign Permissions
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleUnassignPermissionsClick(row)}
-            >
-              <Unlink className="mr-2 h-4 w-4" />
-              Unassign Permissions
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/admin/roles/permissions?workspaceId=${workspaceId ?? ""}&roleId=${row.workspaceRoleId}`}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                Manage Permissions
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -921,7 +1012,14 @@ export default function AdminRolesPage() {
                 value={assignSelectedResourceId}
                 onValueChange={(value) => {
                   setAssignSelectedResourceId(value);
-                  setAssignSelectedPermissionIds([]);
+                  const rolePerm = assignPermissionsRole?.permissions?.find(
+                    (p) => p.resourceId === value
+                  );
+                  const assignedIds = getAssignedPermissionIdsForResource(
+                    rolePerm,
+                    assignPermissionsList
+                  );
+                  setAssignSelectedPermissionIds(assignedIds);
                 }}
               >
                 <SelectTrigger>
@@ -941,12 +1039,14 @@ export default function AdminRolesPage() {
             </div>
             <div className="space-y-2">
               <Label>Permissions</Label>
+              {assignSelectedResourceId && (
+                <p className="text-xs text-muted-foreground">
+                  Already assigned permissions for this resource are
+                  pre-checked. You can add more or leave as is.
+                </p>
+              )}
               <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
-                {isLoadingAssignPermissions ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Loading...
-                  </p>
-                ) : assignPermissionsList.length === 0 ? (
+                {assignPermissionsList.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No permissions available
                   </p>
@@ -1108,11 +1208,7 @@ export default function AdminRolesPage() {
                   Permissions to remove (assigned permissions are pre-checked)
                 </Label>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
-                  {isLoadingUnassignPermissions ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Loading...
-                    </p>
-                  ) : unassignPermissionsList.length === 0 ? (
+                  {unassignPermissionsList.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       No permissions available
                     </p>

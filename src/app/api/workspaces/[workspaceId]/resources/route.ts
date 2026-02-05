@@ -12,12 +12,14 @@ export async function GET(
     const search = searchParams.get("search");
     const page = searchParams.get("page");
     const pageSize = searchParams.get("pageSize");
+    const tree = searchParams.get("tree");
 
-    // Build query string
+    // Build query string (tree=true asks backend for nested children when supported)
     const queryParams = new URLSearchParams();
     if (search) queryParams.append("search", search);
     if (page) queryParams.append("page", page);
     if (pageSize) queryParams.append("pageSize", pageSize);
+    if (tree) queryParams.append("tree", tree);
 
     const queryString = queryParams.toString();
     const endpoint = `/api/workspaces/${params.workspaceId}/resources${

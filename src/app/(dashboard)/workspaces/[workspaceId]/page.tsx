@@ -74,6 +74,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client";
 import {
   extractPermissionAssignments,
   groupPermissionAssignments,
+  resourcePermissionDtoToPermissionIds,
   type RolePermissionGroup,
 } from "@/lib/permission-utils";
 
@@ -706,64 +707,25 @@ export default function WorkspaceDetailPage() {
     resourceId: string
   ): Promise<string[]> => {
     try {
-      // Fetch existing permissions for this role and resource
-      const result = await apiGet<any>(
-        `/api/workspaces/${workspaceId}/roles/${roleId}/permissions?resourceId=${resourceId}`
+      const result = await apiGet<WorkspaceRole>(
+        `/api/workspaces/${workspaceId}/roles/${roleId}`
       );
 
-      if (result.success && result.data) {
-        // Handle different response structures
-        const data = result.data;
-
-        // Case 1: Direct permissionIds array in data
-        if (data.permissionIds && Array.isArray(data.permissionIds)) {
-          console.log("Found permissionIds array:", data.permissionIds);
-          return data.permissionIds.filter(
-            (id: unknown): id is string => typeof id === "string"
-          );
-        }
-
-        // Case 2: Permissions array with permissionId field
-        if (data.permissions && Array.isArray(data.permissions)) {
-          const ids = data.permissions
-            .map((p: any) => p.permissionId || p.id)
-            .filter(
-              (id: unknown): id is string => typeof id === "string" && !!id
-            );
-          console.log("Found permissions array, extracted IDs:", ids);
-          return ids;
-        }
-
-        // Case 3: Data is directly an array of permission IDs
-        if (Array.isArray(data)) {
-          const ids = data.filter(
-            (id: unknown): id is string => typeof id === "string" && !!id
-          );
-          console.log("Data is array of IDs:", ids);
-          return ids;
-        }
-
-        // Case 4: Data has nested structure with items array
-        if (data.items && Array.isArray(data.items)) {
-          const ids = data.items
-            .map((item: any) => item.permissionId || item.id || item)
-            .filter(
-              (id: unknown): id is string => typeof id === "string" && !!id
-            );
-          console.log("Found items array, extracted IDs:", ids);
-          return ids;
-        }
-
-        console.warn(
-          "Unexpected response structure for role permissions:",
-          data
-        );
+      if (!result.success || !result.data?.permissions) {
+        return [];
       }
 
-      return [];
+      const rolePerm = result.data.permissions.find(
+        (p) => p.resourceId === resourceId
+      );
+      const permissionsSnapshot =
+        allPermissions.length > 0 ? allPermissions : await loadAllPermissions();
+      return resourcePermissionDtoToPermissionIds(
+        rolePerm,
+        permissionsSnapshot
+      );
     } catch (error) {
       console.error("Failed to fetch existing permissions for role:", error);
-      // Return empty array on error so UI still works
       return [];
     }
   };
@@ -776,8 +738,8 @@ export default function WorkspaceDetailPage() {
       const permissionsSnapshot =
         allPermissions.length > 0 ? allPermissions : await loadAllPermissions();
 
-      const result = await apiGet<any>(
-        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions`
+      const result = await apiGet<WorkspaceRole>(
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}`
       );
 
       if (result.success && result.data) {

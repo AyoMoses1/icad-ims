@@ -137,11 +137,11 @@ export default function RoleResourcesPage() {
     setIsLoadingAssignments(true);
     try {
       const response = await fetch(
-        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions`
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}`
       );
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.data) {
         const assignments = extractPermissionAssignments(result.data);
 
         // Fetch all resources and permissions to resolve names
