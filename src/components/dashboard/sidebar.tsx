@@ -449,9 +449,10 @@ export function Sidebar() {
   };
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    const currentPath = pathname ?? "";
+    if (href === "/") return currentPath === "/";
     if (href === "#") return false;
-    return pathname.startsWith(href);
+    return currentPath.startsWith(href);
   };
 
   const isChildActive = (children?: { title: string; href: string }[]) => {
@@ -588,7 +589,10 @@ export function Sidebar() {
           {/* Maritime Intelligence - Only show for non-admin users */}
           {!userInfo?.isAdmin && (
             <NavLink
-              item={{ title: "Maritime Intelligence", href: "/maritime-intelligence" }}
+              item={{
+                title: "Maritime Intelligence",
+                href: "/maritime-intelligence",
+              }}
               icon={Ship}
             />
           )}

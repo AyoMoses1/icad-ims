@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   Shield,
   Key,
+  Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,7 +47,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AdminRoleDto, AdminRoleListItemDto } from "@/types";
+import type {
+  AdminRoleDto,
+  AdminRoleListItemDto,
+  AdminRolePermissionDto,
+} from "@/types";
 import { apiGetAuth } from "@/lib/api-client";
 import type { UserInfo } from "@/types";
 import { useWorkspaceStore } from "@/store";
@@ -57,9 +62,54 @@ import {
   updateAdminRole,
   deleteAdminRole,
   assignPermissionsToAdminRole,
+  unassignPermissionsFromAdminRole,
+  unassignPermissionsFromWorkspaceRole,
 } from "@/lib/services/admin-role-service";
 import { apiGet } from "@/lib/api-client";
 import type { WorkspaceResource, Permission, PaginatedResponse } from "@/types";
+
+/**
+ * Maps role's resource permission flags (canCreate, canRead, etc.) to permission IDs.
+ * Matches permission codes case-insensitively (e.g. "Create", "Declarations.Create").
+ */
+function getAssignedPermissionIdsForResource(
+  rolePermission: AdminRolePermissionDto | undefined,
+  allPermissions: Permission[]
+): string[] {
+  if (!rolePermission) return [];
+
+  const actionToCodes: Record<string, string[]> = {
+    canCreate: ["create"],
+    canRead: ["read"],
+    canUpdate: ["update"],
+    canDelete: ["delete"],
+    canImport: ["import"],
+    canExport: ["export"],
+    canApprove: ["approve"],
+    canManage: ["manage"],
+    canReject: ["reject"],
+  };
+
+  const assignedIds: string[] = [];
+  for (const [flag, codes] of Object.entries(actionToCodes)) {
+    const isAssigned = rolePermission[flag as keyof AdminRolePermissionDto];
+    if (!isAssigned || typeof isAssigned !== "boolean") continue;
+
+    for (const perm of allPermissions) {
+      const codeLower = (perm.permissionCode || "").toLowerCase();
+      const matches = codes.some(
+        (c) =>
+          codeLower === c ||
+          codeLower.endsWith(`.${c}`) ||
+          codeLower.endsWith(`_${c}`)
+      );
+      if (matches && !assignedIds.includes(perm.permissionId)) {
+        assignedIds.push(perm.permissionId);
+      }
+    }
+  }
+  return assignedIds;
+}
 
 export default function AdminRolesPage() {
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
@@ -100,6 +150,27 @@ export default function AdminRolesPage() {
   const [isLoadingAssignPermissions, setIsLoadingAssignPermissions] =
     useState(false);
   const [isSubmittingAssignPermissions, setIsSubmittingAssignPermissions] =
+    useState(false);
+
+  // Unassign Permissions dialog
+  const [isUnassignPermissionsOpen, setIsUnassignPermissionsOpen] =
+    useState(false);
+  const [unassignPermissionsRole, setUnassignPermissionsRole] =
+    useState<AdminRoleDto | null>(null);
+  const [unassignResources, setUnassignResources] = useState<
+    WorkspaceResource[]
+  >([]);
+  const [unassignPermissionsList, setUnassignPermissionsList] = useState<
+    Permission[]
+  >([]);
+  const [unassignSelectedResourceId, setUnassignSelectedResourceId] =
+    useState<string>("");
+  const [unassignSelectedPermissionIds, setUnassignSelectedPermissionIds] =
+    useState<string[]>([]);
+  const [unassignEntireResource, setUnassignEntireResource] = useState(false);
+  const [isLoadingUnassignPermissions, setIsLoadingUnassignPermissions] =
+    useState(false);
+  const [isSubmittingUnassignPermissions, setIsSubmittingUnassignPermissions] =
     useState(false);
 
   const loadRoles = async () => {
@@ -338,13 +409,15 @@ export default function AdminRolesPage() {
         return;
       }
       const role = result.data;
-      if (role.isAdmin) {
-        toast.info(
-          "Administrative roles do not have resource-level permissions."
-        );
+      const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
+      if (!workspaceIdForPermissions) {
+        toast.error("Please select a workspace to assign permissions");
         return;
       }
-      setAssignPermissionsRole(role);
+      setAssignPermissionsRole({
+        ...role,
+        workspaceId: workspaceIdForPermissions,
+      });
       setAssignSelectedResourceId("");
       setAssignSelectedPermissionIds([]);
       setIsAssignPermissionsOpen(true);
@@ -352,7 +425,7 @@ export default function AdminRolesPage() {
       try {
         const [resourcesRes, permissionsRes] = await Promise.all([
           apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
-            `/api/workspaces/${role.workspaceId}/resources`
+            `/api/workspaces/${workspaceIdForPermissions}/resources`
           ),
           apiGet<Permission[] | PaginatedResponse<Permission>>(
             `/api/permissions`
@@ -418,6 +491,121 @@ export default function AdminRolesPage() {
       );
     } finally {
       setIsSubmittingAssignPermissions(false);
+    }
+  };
+
+  const handleUnassignPermissionsClick = async (row: AdminRoleListItemDto) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
+    try {
+      const result = await getAdminRoleById(row.workspaceRoleId, workspaceId);
+      if (!result.success || !result.data) {
+        toast.error("Failed to load role details");
+        return;
+      }
+      const role = result.data;
+      const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
+      if (!workspaceIdForPermissions) {
+        toast.error("Please select a workspace to unassign permissions");
+        return;
+      }
+      setUnassignPermissionsRole({
+        ...role,
+        workspaceId: workspaceIdForPermissions,
+      });
+      setUnassignSelectedResourceId("");
+      setUnassignSelectedPermissionIds([]);
+      setUnassignEntireResource(false);
+      setIsUnassignPermissionsOpen(true);
+      setIsLoadingUnassignPermissions(true);
+      try {
+        const [resourcesRes, permissionsRes] = await Promise.all([
+          apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+            `/api/workspaces/${workspaceIdForPermissions}/resources`
+          ),
+          apiGet<Permission[] | PaginatedResponse<Permission>>(
+            `/api/permissions`
+          ),
+        ]);
+        const resourcesData =
+          resourcesRes.success && resourcesRes.data
+            ? Array.isArray(resourcesRes.data)
+              ? resourcesRes.data
+              : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                  .items || []
+            : [];
+        const permissionsData =
+          permissionsRes.success && permissionsRes.data
+            ? Array.isArray(permissionsRes.data)
+              ? permissionsRes.data
+              : (permissionsRes.data as PaginatedResponse<Permission>).items ||
+                []
+            : [];
+        setUnassignResources(resourcesData);
+        setUnassignPermissionsList(permissionsData);
+      } finally {
+        setIsLoadingUnassignPermissions(false);
+      }
+    } catch (error) {
+      console.error("Error loading role for unassign permissions:", error);
+      toast.error("Failed to load role details");
+    }
+  };
+
+  const handleUnassignPermissionsSubmit = async () => {
+    if (!unassignPermissionsRole || !unassignSelectedResourceId) {
+      toast.error("Please select a resource");
+      return;
+    }
+    if (!unassignEntireResource && unassignSelectedPermissionIds.length === 0) {
+      toast.error(
+        "Please select at least one permission to unassign, or check 'Unassign entire resource'"
+      );
+      return;
+    }
+    setIsSubmittingUnassignPermissions(true);
+    try {
+      const workspaceIdForApi =
+        unassignPermissionsRole.workspaceId || workspaceId || "";
+      const data = {
+        resourceId: unassignSelectedResourceId,
+        permissionIds: unassignEntireResource
+          ? []
+          : unassignSelectedPermissionIds,
+        unassignResource: unassignEntireResource,
+      };
+      const result = unassignPermissionsRole.isAdmin
+        ? await unassignPermissionsFromAdminRole(
+            unassignPermissionsRole.workspaceRoleId,
+            workspaceIdForApi,
+            data
+          )
+        : await unassignPermissionsFromWorkspaceRole(
+            workspaceIdForApi,
+            unassignPermissionsRole.workspaceRoleId,
+            data
+          );
+      if (result.success) {
+        toast.success("Permissions unassigned successfully");
+        setIsUnassignPermissionsOpen(false);
+        setUnassignPermissionsRole(null);
+        setUnassignSelectedResourceId("");
+        setUnassignSelectedPermissionIds([]);
+        setUnassignEntireResource(false);
+        loadRoles();
+      } else {
+        toast.error(result.message || "Failed to unassign permissions");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to unassign permissions"
+      );
+    } finally {
+      setIsSubmittingUnassignPermissions(false);
     }
   };
 
@@ -491,17 +679,19 @@ export default function AdminRolesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {row.isAdmin === false && (
-              <DropdownMenuItem
-                onClick={() => handleAssignPermissionsClick(row)}
-              >
-                <Key className="mr-2 h-4 w-4" />
-                Assign Permissions
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={() => handleEdit(row)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleAssignPermissionsClick(row)}>
+              <Key className="mr-2 h-4 w-4" />
+              Assign Permissions
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleUnassignPermissionsClick(row)}
+            >
+              <Unlink className="mr-2 h-4 w-4" />
+              Unassign Permissions
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -828,6 +1018,175 @@ export default function AdminRolesPage() {
               {isSubmittingAssignPermissions
                 ? "Assigning..."
                 : "Assign Permissions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unassign Permissions Dialog */}
+      <Dialog
+        open={isUnassignPermissionsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUnassignPermissionsRole(null);
+            setUnassignSelectedResourceId("");
+            setUnassignSelectedPermissionIds([]);
+            setUnassignEntireResource(false);
+          }
+          setIsUnassignPermissionsOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Unassign Permissions</DialogTitle>
+            <DialogDescription>
+              {unassignPermissionsRole
+                ? `Choose a resource and select the permissions to remove from ${unassignPermissionsRole.roleName}.`
+                : "Unassign permissions from this role."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Resource</Label>
+              <Select
+                value={unassignSelectedResourceId}
+                onValueChange={(value) => {
+                  setUnassignSelectedResourceId(value);
+                  const rolePerm = unassignPermissionsRole?.permissions?.find(
+                    (p) => p.resourceId === value
+                  );
+                  const assignedIds = getAssignedPermissionIdsForResource(
+                    rolePerm,
+                    unassignPermissionsList
+                  );
+                  setUnassignSelectedPermissionIds(assignedIds);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a resource" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unassignResources.map((resource) => (
+                    <SelectItem
+                      key={resource.resourceId}
+                      value={resource.resourceId}
+                    >
+                      {resource.resourceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unassignSelectedResourceId && (
+                <p className="text-xs text-muted-foreground">
+                  Currently assigned permissions for this resource are
+                  pre-checked. Uncheck the ones you want to remove.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="unassign-entire-resource"
+                checked={unassignEntireResource}
+                onCheckedChange={(checked) => {
+                  setUnassignEntireResource(checked === true);
+                  if (checked) {
+                    setUnassignSelectedPermissionIds([]);
+                  }
+                }}
+              />
+              <Label
+                htmlFor="unassign-entire-resource"
+                className="cursor-pointer"
+              >
+                Unassign entire resource (removes resource and all its
+                permissions from this role)
+              </Label>
+            </div>
+            {!unassignEntireResource && (
+              <div className="space-y-2">
+                <Label>
+                  Permissions to remove (assigned permissions are pre-checked)
+                </Label>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
+                  {isLoadingUnassignPermissions ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Loading...
+                    </p>
+                  ) : unassignPermissionsList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No permissions available
+                    </p>
+                  ) : (
+                    unassignPermissionsList.map((permission) => (
+                      <div
+                        key={permission.permissionId}
+                        className="flex items-center space-x-2"
+                      >
+                        <Checkbox
+                          id={`unassign-${permission.permissionId}`}
+                          checked={unassignSelectedPermissionIds.includes(
+                            permission.permissionId
+                          )}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setUnassignSelectedPermissionIds([
+                                ...unassignSelectedPermissionIds,
+                                permission.permissionId,
+                              ]);
+                            } else {
+                              setUnassignSelectedPermissionIds(
+                                unassignSelectedPermissionIds.filter(
+                                  (id) => id !== permission.permissionId
+                                )
+                              );
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`unassign-${permission.permissionId}`}
+                          className="cursor-pointer flex-1"
+                        >
+                          <div>
+                            <div className="font-medium">
+                              {permission.permissionName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {permission.permissionCode}
+                            </div>
+                          </div>
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsUnassignPermissionsOpen(false);
+                setUnassignPermissionsRole(null);
+                setUnassignSelectedResourceId("");
+                setUnassignSelectedPermissionIds([]);
+                setUnassignEntireResource(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUnassignPermissionsSubmit}
+              disabled={
+                isSubmittingUnassignPermissions ||
+                !unassignSelectedResourceId ||
+                (!unassignEntireResource &&
+                  unassignSelectedPermissionIds.length === 0)
+              }
+            >
+              {isSubmittingUnassignPermissions
+                ? "Unassigning..."
+                : "Unassign Permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,11 +21,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/shared";
 import { useWorkspaceStore } from "@/store";
-import {
-  WorkspaceRole,
-  WorkspaceResource,
-  Permission,
-} from "@/types";
+import { WorkspaceRole, WorkspaceResource, Permission } from "@/types";
 import {
   extractPermissionAssignments,
   groupPermissionAssignments,
@@ -35,8 +31,8 @@ import {
 
 export default function RoleResourcesPage() {
   const searchParams = useSearchParams();
-  const queryWorkspaceId = searchParams.get("workspaceId");
-  const queryRoleId = searchParams.get("roleId");
+  const queryWorkspaceId = searchParams?.get("workspaceId") ?? null;
+  const queryRoleId = searchParams?.get("roleId") ?? null;
   const { workspaces, currentWorkspace, setCurrentWorkspace } =
     useWorkspaceStore();
   const [workspaceId, setWorkspaceId] = useState(() => {
@@ -90,7 +86,16 @@ export default function RoleResourcesPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryWorkspaceId, queryRoleId, workspaceId, pendingRoleId, roles, resources, permissions, selectedRole]);
+  }, [
+    queryWorkspaceId,
+    queryRoleId,
+    workspaceId,
+    pendingRoleId,
+    roles,
+    resources,
+    permissions,
+    selectedRole,
+  ]);
 
   useEffect(() => {
     if (workspaceId) {
@@ -102,9 +107,15 @@ export default function RoleResourcesPage() {
   }, [workspaceId, queryRoleId]);
 
   useEffect(() => {
-    // Only auto-select role if we have a pendingRoleId, roles are loaded, 
+    // Only auto-select role if we have a pendingRoleId, roles are loaded,
     // and the role hasn't been selected yet (to avoid conflicts with loadWorkspaceContext)
-    if (pendingRoleId && roles.length > 0 && resources.length > 0 && permissions.length > 0 && !selectedRole) {
+    if (
+      pendingRoleId &&
+      roles.length > 0 &&
+      resources.length > 0 &&
+      permissions.length > 0 &&
+      !selectedRole
+    ) {
       const role = roles.find((r) => r.workspaceRoleId === pendingRoleId);
       if (role) {
         setSelectedRole(role);
@@ -132,7 +143,7 @@ export default function RoleResourcesPage() {
 
       if (result.success) {
         const assignments = extractPermissionAssignments(result.data);
-        
+
         // Fetch all resources and permissions to resolve names
         const query = new URLSearchParams({
           workspaceId: workspaceId,
@@ -250,7 +261,8 @@ export default function RoleResourcesPage() {
       setPermissions(resolvedPermissions);
 
       if (
-        (!currentWorkspace || currentWorkspace.workspaceId !== targetWorkspaceId) &&
+        (!currentWorkspace ||
+          currentWorkspace.workspaceId !== targetWorkspaceId) &&
         workspaces.length > 0
       ) {
         const workspace = workspaces.find(
@@ -268,22 +280,24 @@ export default function RoleResourcesPage() {
           pendingRoleId ||
           selectedRole?.workspaceRoleId ||
           "";
-        
+
         // Find the role by ID, or fall back to first role
-        const roleToSelect =
-          priorityRoleId
-            ? resolvedRoles.find(
-                (role) => role.workspaceRoleId === priorityRoleId
-              ) || resolvedRoles[0]
-            : resolvedRoles[0];
-        
+        const roleToSelect = priorityRoleId
+          ? resolvedRoles.find(
+              (role) => role.workspaceRoleId === priorityRoleId
+            ) || resolvedRoles[0]
+          : resolvedRoles[0];
+
         setSelectedRole(roleToSelect);
-        
+
         // Only clear pendingRoleId if we successfully selected the preferred role
-        if (preferredRoleId && roleToSelect.workspaceRoleId === preferredRoleId) {
+        if (
+          preferredRoleId &&
+          roleToSelect.workspaceRoleId === preferredRoleId
+        ) {
           setPendingRoleId("");
         }
-        
+
         await loadRoleAssignments(
           roleToSelect,
           resolvedResources,
@@ -399,7 +413,10 @@ export default function RoleResourcesPage() {
   );
 
   const canManageAssignments =
-    selectedRole && !isLoadingAssignments && resources.length > 0 && permissions.length > 0;
+    selectedRole &&
+    !isLoadingAssignments &&
+    resources.length > 0 &&
+    permissions.length > 0;
 
   return (
     <div className="space-y-6">

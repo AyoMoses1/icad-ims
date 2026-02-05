@@ -17,6 +17,7 @@ import type {
   CreateAdminRoleRequestDto,
   UpdateAdminRoleRequestDto,
   AssignPermissionsToRoleRequestDto,
+  UnassignPermissionsRequestDto,
 } from "@/types";
 
 const API_BASE = "/api/admin-roles";
@@ -116,18 +117,33 @@ export async function assignPermissionsToAdminRole(
 /**
  * Unassign permissions from an admin role
  * URL: DELETE /api/admin-roles/{id}/permissions?workspaceId={workspaceId}
- * Body: { resourceId: string, permissionIds: string[] }
+ * Body: { resourceId: string, permissionIds: string[], unassignResource?: boolean }
  */
 export async function unassignPermissionsFromAdminRole(
   id: string,
   workspaceId: string,
-  data: AssignPermissionsToRoleRequestDto
+  data: UnassignPermissionsRequestDto
 ): Promise<ApiResponse<boolean>> {
   const params = new URLSearchParams();
   params.append("workspaceId", workspaceId);
   return apiDelete<boolean>(
     `${API_BASE}/${id}/permissions?${params.toString()}`,
-    data,
-    undefined
+    data
+  );
+}
+
+/**
+ * Unassign permissions from a workspace (domain) role
+ * URL: DELETE /api/workspaces/{workspaceId}/roles/{roleId}/permissions
+ * Body: { resourceId: string, permissionIds: string[], unassignResource?: boolean }
+ */
+export async function unassignPermissionsFromWorkspaceRole(
+  workspaceId: string,
+  roleId: string,
+  data: UnassignPermissionsRequestDto
+): Promise<ApiResponse<boolean>> {
+  return apiDelete<boolean>(
+    `/api/workspaces/${workspaceId}/roles/${roleId}/permissions`,
+    data
   );
 }

@@ -80,7 +80,7 @@ import {
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const workspaceId = params.workspaceId as string;
+  const workspaceId = (params?.workspaceId as string) ?? "";
   const { setCurrentWorkspace } = useWorkspaceStore();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);

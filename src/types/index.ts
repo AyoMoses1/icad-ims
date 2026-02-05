@@ -717,12 +717,25 @@ export interface UpdateAdminRoleRequestDto {
 }
 
 /**
- * Request body for assigning/unassigning permissions to an admin role
- * Used by POST/DELETE /api/admin-roles/{id}/permissions
+ * Request body for assigning permissions to an admin role
+ * Used by POST /api/admin-roles/{id}/permissions
  */
 export interface AssignPermissionsToRoleRequestDto {
   resourceId: string;
   permissionIds: string[];
+}
+
+/**
+ * Request body for unassigning permissions from a role
+ * Used by DELETE /api/admin-roles/{id}/permissions and
+ * DELETE /api/workspaces/{workspaceId}/roles/{roleId}/permissions
+ * - permissionIds: required when unassignResource is false; can be empty when unassignResource is true
+ * - unassignResource: when true, unassigns the entire resource (removes role-resource link and all permissions)
+ */
+export interface UnassignPermissionsRequestDto {
+  resourceId: string;
+  permissionIds: string[];
+  unassignResource?: boolean;
 }
 
 // ============================================================================

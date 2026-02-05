@@ -1238,7 +1238,7 @@ export function Header() {
     }
   };
 
-  const pageTitle = getPageTitle(pathname);
+  const pageTitle = getPageTitle(pathname ?? "");
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
