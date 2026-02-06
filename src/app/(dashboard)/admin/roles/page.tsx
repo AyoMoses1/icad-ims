@@ -279,7 +279,7 @@ export default function AdminRolesPage() {
       roleCode: "",
       roleDescription: "",
       isAdmin: false,
-      createRoleWorkspaceId: workspaceId || "",
+      createRoleWorkspaceId: workspaceId ?? "",
     });
     setIsCreateOpen(true);
   };
@@ -317,19 +317,15 @@ export default function AdminRolesPage() {
       toast.error("Role name is required");
       return;
     }
-    if (!formData.isAdmin) {
-      const wId = formData.createRoleWorkspaceId || workspaceId;
-      if (!wId) {
-        toast.error("Please select a workspace for this domain role");
-        return;
-      }
+    const workspaceIdForCreate =
+      formData.createRoleWorkspaceId || workspaceId || undefined;
+    if (!workspaceIdForCreate) {
+      toast.error("Please select a workspace for this role");
+      return;
     }
 
     setIsSubmitting(true);
     try {
-      const workspaceIdForCreate = formData.isAdmin
-        ? undefined
-        : formData.createRoleWorkspaceId || workspaceId || undefined;
       const result = await createAdminRole(
         {
           roleName: formData.roleName,
@@ -337,7 +333,7 @@ export default function AdminRolesPage() {
           roleDescription: formData.roleDescription || null,
           isAdmin: formData.isAdmin,
         },
-        workspaceIdForCreate ?? null
+        workspaceIdForCreate
       );
 
       if (result.success) {
@@ -347,11 +343,9 @@ export default function AdminRolesPage() {
             : "Domain role created"
         );
         setIsCreateOpen(false);
-        if (workspaceIdForCreate && workspaceIdForCreate === workspaceId) {
-          loadRoles();
-        } else if (workspaceIdForCreate) {
-          loadRoles();
-        } else if (workspaceId) {
+        if (workspaceIdForCreate !== workspaceId) {
+          setWorkspaceId(workspaceIdForCreate);
+        } else {
           loadRoles();
         }
       } else {
@@ -901,37 +895,36 @@ export default function AdminRolesPage() {
                 Administrative role (no resource-level permissions)
               </Label>
             </div>
-            {!formData.isAdmin && (
-              <div className="space-y-2">
-                <Label htmlFor="createRoleWorkspace">
-                  Workspace <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.createRoleWorkspaceId || undefined}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      createRoleWorkspaceId: value,
-                    })
-                  }
-                >
-                  <SelectTrigger id="createRoleWorkspace">
-                    <SelectValue placeholder="Select workspace for this role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
-                      <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
-                        {ws.workspaceName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Domain roles are tied to a workspace. You can assign
-                  permissions after creating the role.
-                </p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="createRoleWorkspace">
+                Workspace <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.createRoleWorkspaceId || undefined}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    createRoleWorkspaceId: value,
+                  })
+                }
+              >
+                <SelectTrigger id="createRoleWorkspace">
+                  <SelectValue placeholder="Select workspace for this role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                    <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                      {ws.workspaceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.isAdmin
+                  ? "Select the workspace this administrative role belongs to."
+                  : "Domain roles are tied to a workspace. You can assign permissions after creating the role."}
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="roleName">
                 Role Name <span className="text-destructive">*</span>
