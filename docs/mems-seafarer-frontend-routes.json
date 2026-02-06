@@ -1,314 +1,750 @@
 {
-  "description": "All page routes from mems-seafarer-frontend for IMS resource configuration. Use 'url' as workspace resource URL. Role keys: super_admin, training_institution, agent, seafarer.",
+  "description": "All page routes from mems-seafarer-frontend for IMS resource configuration. Use url as workspace resource URL. Role keys: super_admin, training_institution, agent, seafarer. Parent/child: isParent=true when other routes exist under this path; isChild=true when this route is under another; parentUrl is the immediate parent route url, or null.",
   "routes": [
-    { "url": "/auth/signin", "name": "Sign In", "roles": [] },
-    { "url": "/auth/signup", "name": "Sign Up", "roles": [] },
-    { "url": "/auth/forgot-password", "name": "Forgot Password", "roles": [] },
-    { "url": "/auth/reset-password", "name": "Reset Password", "roles": [] },
-    { "url": "/auth/verify-email", "name": "Verify Email", "roles": [] },
-    { "url": "/", "name": "Home", "roles": ["super_admin", "seafarer"] },
+    {
+      "url": "/auth/signin",
+      "name": "Sign In",
+      "roles": [],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/auth/signup",
+      "name": "Sign Up",
+      "roles": [],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/auth/forgot-password",
+      "name": "Forgot Password",
+      "roles": [],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/auth/reset-password",
+      "name": "Reset Password",
+      "roles": [],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/auth/verify-email",
+      "name": "Verify Email",
+      "roles": [],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/",
+      "name": "Home",
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
     {
       "url": "/onboarding",
       "name": "Onboarding",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/onboarding/seafarer",
       "name": "Onboarding Seafarer",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/onboarding"
     },
     {
       "url": "/onboarding/institution",
       "name": "Onboarding Institution",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/onboarding"
     },
     {
       "url": "/onboarding/comprehensive",
       "name": "Onboarding Comprehensive",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/onboarding"
     },
     {
       "url": "/onboarding/status/pending",
       "name": "Onboarding Pending",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/onboarding"
     },
     {
       "url": "/onboarding/status/rejected",
       "name": "Onboarding Rejected",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/onboarding"
     },
     {
       "url": "/applications/apply",
       "name": "Apply Application",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/dashboard",
       "name": "Seafarer Dashboard",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/overview",
       "name": "Seafarer Overview",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/add",
       "name": "Add Seafarer",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/registry",
       "name": "Seafarer Registry",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/applications",
       "name": "Seafarer Applications",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/applications/history",
       "name": "Application History",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/seafarer/applications"
     },
     {
       "url": "/seafarer/services",
       "name": "Seafarer Services",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/miis",
       "name": "MIIS",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/seafarer/profile/contact",
       "name": "Profile Contact",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/seafarer/profile"
     },
     {
       "url": "/seafarer/profile/education",
       "name": "Profile Education",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/seafarer/profile"
     },
     {
       "url": "/seafarer/profile",
       "name": "Seafarer Profile",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/agent/dashboard",
       "name": "Agent Dashboard",
-      "roles": ["super_admin", "agent"]
+      "roles": [
+        "super_admin",
+        "agent"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/institution/dashboard",
       "name": "Institution Dashboard",
-      "roles": ["super_admin", "training_institution"]
+      "roles": [
+        "super_admin",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/institution/training-results",
       "name": "Training Results",
-      "roles": ["super_admin", "training_institution"]
+      "roles": [
+        "super_admin",
+        "training_institution"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/institution/training-results/upload",
       "name": "Upload Training Results",
-      "roles": ["super_admin", "training_institution"]
+      "roles": [
+        "super_admin",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/institution/training-results"
     },
     {
       "url": "/institution/inspections",
       "name": "Institution Inspections",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/institution/deficiencies",
       "name": "Institution Deficiencies",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/dashboard",
       "name": "Admin Dashboard",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/onboarding",
       "name": "Admin Onboarding",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null,
+      "checkAgain": true
     },
     {
       "url": "/admin/applications/review",
       "name": "Applications Review",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/accreditations",
       "name": "Admin Accreditations",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/accreditations/review",
       "name": "Review Accreditations",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/admin/accreditations"
     },
     {
       "url": "/admin/inspections",
       "name": "Admin Inspections",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/inspections/reports",
       "name": "Inspection Reports",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/admin/inspections"
     },
     {
       "url": "/admin/inspections/deficiencies",
       "name": "Deficiency Reports",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/admin/inspections"
     },
-    { "url": "/admin/audits", "name": "Audits", "roles": ["super_admin"] },
+    {
+      "url": "/admin/audits",
+      "name": "Audits",
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
     {
       "url": "/admin/services",
       "name": "Admin Services",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/services/create",
       "name": "Create Service",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/admin/services"
     },
     {
       "url": "/admin/requirement-lists",
       "name": "Requirement Lists",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/admin/statistics",
       "name": "Admin Statistics",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/profile-documents",
       "name": "Profile Documents",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/documents",
       "name": "Documents",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/institutions",
       "name": "Institutions",
-      "roles": ["super_admin", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/medical-institutes",
       "name": "Medical Institutes",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/invoices/my-invoices",
       "name": "My Invoices",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/invoices/management",
       "name": "Invoice Management",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/invoices/payments",
       "name": "Payments",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/accreditations",
       "name": "Accreditations",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/accreditations/apply",
       "name": "Apply Accreditation",
-      "roles": ["super_admin", "seafarer", "agent", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "agent",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/accreditations"
     },
     {
       "url": "/accreditations/stcw",
       "name": "STCW Standards",
-      "roles": ["super_admin", "seafarer", "training_institution"]
+      "roles": [
+        "super_admin",
+        "seafarer",
+        "training_institution"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/accreditations"
     },
     {
       "url": "/certificates",
       "name": "Certificates",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/license-certification",
       "name": "License Certification",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/license-certification/apply",
       "name": "Apply License Certification",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/license-certification"
     },
     {
       "url": "/medical/services",
       "name": "Medical Services",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/medical/appointments",
       "name": "Medical Appointments",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
-    { "url": "/vessels", "name": "Vessels", "roles": ["super_admin"] },
-    { "url": "/ranks", "name": "Ranks", "roles": ["super_admin"] },
+    {
+      "url": "/vessels",
+      "name": "Vessels",
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
+    {
+      "url": "/ranks",
+      "name": "Ranks",
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
+    },
     {
       "url": "/nationalities",
       "name": "Nationalities",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/onboarding-requirements",
       "name": "Onboarding Requirements",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/training",
       "name": "Training",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": true,
+      "isChild": false,
+      "parentUrl": null
     },
     {
       "url": "/training/programs",
       "name": "Training Programs",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/training"
     },
     {
       "url": "/training/courses",
       "name": "Training Courses",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/training"
     },
     {
       "url": "/training/cohorts",
       "name": "Training Cohorts",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/training"
     },
     {
       "url": "/training/enroll",
       "name": "Training Enroll",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/training"
     },
     {
       "url": "/training/enrollments",
       "name": "Training Enrollments",
-      "roles": ["super_admin", "seafarer"]
+      "roles": [
+        "super_admin",
+        "seafarer"
+      ],
+      "isParent": false,
+      "isChild": true,
+      "parentUrl": "/training"
     },
     {
       "url": "/staff/dashboard",
       "name": "Staff Dashboard",
-      "roles": ["super_admin"]
+      "roles": [
+        "super_admin"
+      ],
+      "isParent": false,
+      "isChild": false,
+      "parentUrl": null
     }
   ],
   "roleRouteSummary": {
