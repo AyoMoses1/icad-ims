@@ -182,7 +182,10 @@ export function groupPermissionAssignments(
   const permissionByCode = new Map(
     permissions
       .filter((permission) => permission.permissionCode)
-      .map((permission) => [permission.permissionCode!.toUpperCase(), permission])
+      .map((permission) => [
+        permission.permissionCode!.toUpperCase(),
+        permission,
+      ])
   );
 
   const grouped = new Map<string, Map<string, PermissionSummary>>();
@@ -238,7 +241,11 @@ export function groupPermissionAssignments(
         resourceId,
         resourceName: resource?.resourceName || resourceId,
         permissions: Array.from(permissionMap.values()).sort((a, b) =>
-          (a.permissionName || a.permissionCode || a.permissionId).localeCompare(
+          (
+            a.permissionName ||
+            a.permissionCode ||
+            a.permissionId
+          ).localeCompare(
             b.permissionName || b.permissionCode || b.permissionId
           )
         ),
@@ -256,4 +263,57 @@ export function getPermissionIdsForResource(
     return [];
   }
   return group.permissions.map((permission) => permission.permissionId);
+}
+
+/** Map role resource permission flags (canCreate, canRead, etc.) to permission IDs using the full permission list */
+export function resourcePermissionDtoToPermissionIds(
+  rolePermission:
+    | {
+        resourceId?: string;
+        canCreate?: boolean;
+        canRead?: boolean;
+        canUpdate?: boolean;
+        canDelete?: boolean;
+        canImport?: boolean;
+        canExport?: boolean;
+        canApprove?: boolean;
+        canManage?: boolean;
+        canReject?: boolean;
+      }
+    | undefined,
+  allPermissions: Permission[]
+): string[] {
+  if (!rolePermission) return [];
+
+  const actionToCodes: Record<string, string[]> = {
+    canCreate: ["create"],
+    canRead: ["read"],
+    canUpdate: ["update"],
+    canDelete: ["delete"],
+    canImport: ["import"],
+    canExport: ["export"],
+    canApprove: ["approve"],
+    canManage: ["manage"],
+    canReject: ["reject"],
+  };
+
+  const assignedIds: string[] = [];
+  for (const [flag, codes] of Object.entries(actionToCodes)) {
+    const isAssigned = rolePermission[flag as keyof typeof rolePermission];
+    if (!isAssigned || typeof isAssigned !== "boolean") continue;
+
+    for (const perm of allPermissions) {
+      const codeLower = (perm.permissionCode || "").toLowerCase();
+      const matches = codes.some(
+        (c) =>
+          codeLower === c ||
+          codeLower.endsWith(`.${c}`) ||
+          codeLower.endsWith(`_${c}`)
+      );
+      if (matches && !assignedIds.includes(perm.permissionId)) {
+        assignedIds.push(perm.permissionId);
+      }
+    }
+  }
+  return assignedIds;
 }

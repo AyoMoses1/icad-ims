@@ -23,10 +23,10 @@ export default function AuthLayout({
         </div>
         <div className="flex flex-col">
           <span className="text-lg font-semibold text-foreground">
-            Maritime Environmental
+            Maritime Electronic
           </span>
           <span className="text-lg font-semibold text-foreground">
-            Management Systems Mems
+            Management Systems (Mems)
           </span>
         </div>
       </div>

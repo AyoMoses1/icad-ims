@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const userId = searchParams.get("userId");
-  const token = searchParams.get("token");
-  const success = searchParams.get("success");
-  const error = searchParams.get("error");
+  const userId = searchParams?.get("userId") ?? null;
+  const token = searchParams?.get("token") ?? null;
+  const success = searchParams?.get("success") ?? null;
+  const error = searchParams?.get("error") ?? null;
 
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading"

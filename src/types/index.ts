@@ -659,11 +659,13 @@ export interface WcoCompanyDto {
 
 /**
  * AdminRoleListItemDto - Returned by GET /api/admin-roles?workspaceId=...
- * List endpoint only returns roleId and roleName (minimal response)
+ * List endpoint returns workspaceRoleId, roleName, and isAdmin
  */
 export interface AdminRoleListItemDto {
   workspaceRoleId: string;
   roleName: string;
+  /** When true, administrative role; when false, domain role (workspace-scoped, can have resource permissions). */
+  isAdmin?: boolean;
 }
 
 /**
@@ -704,6 +706,8 @@ export interface CreateAdminRoleRequestDto {
   roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
+  /** When true, creates an administrative role. When false, creates a domain role tied to a workspace (workspaceId required). */
+  isAdmin: boolean;
 }
 
 export interface UpdateAdminRoleRequestDto {
@@ -713,12 +717,25 @@ export interface UpdateAdminRoleRequestDto {
 }
 
 /**
- * Request body for assigning/unassigning permissions to an admin role
- * Used by POST/DELETE /api/admin-roles/{id}/permissions
+ * Request body for assigning permissions to an admin role
+ * Used by POST /api/admin-roles/{id}/permissions
  */
 export interface AssignPermissionsToRoleRequestDto {
   resourceId: string;
   permissionIds: string[];
+}
+
+/**
+ * Request body for unassigning permissions from a role
+ * Used by DELETE /api/admin-roles/{id}/permissions and
+ * DELETE /api/workspaces/{workspaceId}/roles/{roleId}/permissions
+ * - permissionIds: required when unassignResource is false; can be empty when unassignResource is true
+ * - unassignResource: when true, unassigns the entire resource (removes role-resource link and all permissions)
+ */
+export interface UnassignPermissionsRequestDto {
+  resourceId: string;
+  permissionIds: string[];
+  unassignResource?: boolean;
 }
 
 // ============================================================================

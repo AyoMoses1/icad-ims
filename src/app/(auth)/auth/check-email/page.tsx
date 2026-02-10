@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 function CheckEmailContent() {
   const searchParams = useSearchParams();
-  const email = searchParams.get("email");
+  const email = searchParams?.get("email") ?? null;
 
   return (
     <div className="space-y-6 text-center">

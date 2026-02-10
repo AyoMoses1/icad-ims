@@ -36,17 +36,23 @@ import { apiGet, apiPost, apiDeleteWithBody } from "@/lib/api-client";
 export default function AssignPermissionsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryWorkspaceId = searchParams.get("workspaceId");
-  const queryRoleId = searchParams.get("roleId");
-  
+  const queryWorkspaceId = searchParams?.get("workspaceId") ?? null;
+  const queryRoleId = searchParams?.get("roleId") ?? null;
+
   const [workspaceId, setWorkspaceId] = useState(queryWorkspaceId || "");
   const [role, setRole] = useState<WorkspaceRole | null>(null);
   const [allResources, setAllResources] = useState<WorkspaceResource[]>([]); // All available resources for dropdown
-  const [assignedResources, setAssignedResources] = useState<WorkspaceResource[]>([]); // Only assigned resources for display
+  const [assignedResources, setAssignedResources] = useState<
+    WorkspaceResource[]
+  >([]); // Only assigned resources for display
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [roleAssignments, setRoleAssignments] = useState<RolePermissionGroup[]>([]);
+  const [roleAssignments, setRoleAssignments] = useState<RolePermissionGroup[]>(
+    []
+  );
   const [selectedResourceId, setSelectedResourceId] = useState("");
-  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
@@ -69,21 +75,23 @@ export default function AssignPermissionsPage() {
     setIsLoadingAssignments(true);
     try {
       // Use GET /api/workspaces/{workspaceId}/roles/{roleId} to get role with resources and permissions
-      const roleResult = await apiGet<WorkspaceRole & {
-        permissions?: Array<{
-          resourceId: string;
-          resourceName: string;
-          canCreate: boolean;
-          canRead: boolean;
-          canUpdate: boolean;
-          canDelete: boolean;
-          canImport?: boolean;
-          canExport?: boolean;
-          canApprove?: boolean;
-          canManage?: boolean;
-          canReject?: boolean;
-        }>;
-      }>(`/api/workspaces/${workspaceId}/roles/${queryRoleId}`);
+      const roleResult = await apiGet<
+        WorkspaceRole & {
+          permissions?: Array<{
+            resourceId: string;
+            resourceName: string;
+            canCreate: boolean;
+            canRead: boolean;
+            canUpdate: boolean;
+            canDelete: boolean;
+            canImport?: boolean;
+            canExport?: boolean;
+            canApprove?: boolean;
+            canManage?: boolean;
+            canReject?: boolean;
+          }>;
+        }
+      >(`/api/workspaces/${workspaceId}/roles/${queryRoleId}`);
 
       if (!roleResult.success || !roleResult.data) {
         toast.error(roleResult.error?.message || "Role not found");
@@ -119,34 +127,37 @@ export default function AssignPermissionsPage() {
       ]);
 
       // Handle both direct array and PaginatedResponse formats for resources
-      const allWorkspaceResources: WorkspaceResource[] = allResourcesResult.success && allResourcesResult.data
-        ? Array.isArray(allResourcesResult.data)
-          ? allResourcesResult.data
-          : allResourcesResult.data.items || []
-        : [];
+      const allWorkspaceResources: WorkspaceResource[] =
+        allResourcesResult.success && allResourcesResult.data
+          ? Array.isArray(allResourcesResult.data)
+            ? allResourcesResult.data
+            : allResourcesResult.data.items || []
+          : [];
 
       // Handle both direct array and PaginatedResponse formats for permissions
-      const allPermissions: Permission[] = permissionsResult.success && permissionsResult.data
-        ? Array.isArray(permissionsResult.data)
-          ? permissionsResult.data
-          : permissionsResult.data.items || []
-        : [];
+      const allPermissions: Permission[] =
+        permissionsResult.success && permissionsResult.data
+          ? Array.isArray(permissionsResult.data)
+            ? permissionsResult.data
+            : permissionsResult.data.items || []
+          : [];
 
       // Convert ResourcePermissionDto to WorkspaceResource objects (only assigned ones)
-      const assignedResourcesList: WorkspaceResource[] = resourcePermissions.map((rp) => ({
-        resourceId: rp.resourceId,
-        resourceName: rp.resourceName,
-        workspaceId: workspaceId,
-        description: undefined,
-        url: undefined,
-        icon: undefined,
-        parentId: undefined,
-        order: 0,
-        isActive: true,
-        createdBy: "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
+      const assignedResourcesList: WorkspaceResource[] =
+        resourcePermissions.map((rp) => ({
+          resourceId: rp.resourceId,
+          resourceName: rp.resourceName,
+          workspaceId: workspaceId,
+          description: undefined,
+          url: undefined,
+          icon: undefined,
+          parentId: undefined,
+          order: 0,
+          isActive: true,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
 
       // Group permissions by resource
       const groups = groupPermissionAssignments(
@@ -168,7 +179,7 @@ export default function AssignPermissionsPage() {
         setSelectedPermissionIds(
           getPermissionIdsForResource(firstResourceId, groups)
         );
-        console.log(selectedPermissionIds)
+        console.log(selectedPermissionIds);
       }
     } catch (error) {
       console.error("Failed to load role", error);
@@ -186,24 +197,28 @@ export default function AssignPermissionsPage() {
     setIsLoadingAssignments(true);
     try {
       // Use GET /api/workspaces/{workspaceId}/roles/{roleId} to get role with resources and permissions
-      const roleResult = await apiGet<WorkspaceRole & {
-        permissions?: Array<{
-          resourceId: string;
-          resourceName: string;
-          canCreate: boolean;
-          canRead: boolean;
-          canUpdate: boolean;
-          canDelete: boolean;
-          canImport?: boolean;
-          canExport?: boolean;
-          canApprove?: boolean;
-          canManage?: boolean;
-          canReject?: boolean;
-        }>;
-      }>(`/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}`);
+      const roleResult = await apiGet<
+        WorkspaceRole & {
+          permissions?: Array<{
+            resourceId: string;
+            resourceName: string;
+            canCreate: boolean;
+            canRead: boolean;
+            canUpdate: boolean;
+            canDelete: boolean;
+            canImport?: boolean;
+            canExport?: boolean;
+            canApprove?: boolean;
+            canManage?: boolean;
+            canReject?: boolean;
+          }>;
+        }
+      >(`/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}`);
 
       if (!roleResult.success || !roleResult.data) {
-        toast.error(roleResult.error?.message || "Failed to load role permissions");
+        toast.error(
+          roleResult.error?.message || "Failed to load role permissions"
+        );
         setRoleAssignments([]);
         setAllResources([]);
         setAssignedResources([]);
@@ -227,34 +242,37 @@ export default function AssignPermissionsPage() {
       ]);
 
       // Handle both direct array and PaginatedResponse formats for resources
-      const allWorkspaceResources: WorkspaceResource[] = allResourcesResult.success && allResourcesResult.data
-        ? Array.isArray(allResourcesResult.data)
-          ? allResourcesResult.data
-          : allResourcesResult.data.items || []
-        : [];
+      const allWorkspaceResources: WorkspaceResource[] =
+        allResourcesResult.success && allResourcesResult.data
+          ? Array.isArray(allResourcesResult.data)
+            ? allResourcesResult.data
+            : allResourcesResult.data.items || []
+          : [];
 
       // Handle both direct array and PaginatedResponse formats for permissions
-      const allPermissions: Permission[] = permissionsResult.success && permissionsResult.data
-        ? Array.isArray(permissionsResult.data)
-          ? permissionsResult.data
-          : permissionsResult.data.items || []
-        : [];
+      const allPermissions: Permission[] =
+        permissionsResult.success && permissionsResult.data
+          ? Array.isArray(permissionsResult.data)
+            ? permissionsResult.data
+            : permissionsResult.data.items || []
+          : [];
 
       // Convert ResourcePermissionDto to WorkspaceResource objects (only assigned ones)
-      const assignedResourcesList: WorkspaceResource[] = resourcePermissions.map((rp) => ({
-        resourceId: rp.resourceId,
-        resourceName: rp.resourceName,
-        workspaceId: workspaceId,
-        description: undefined,
-        url: undefined,
-        icon: undefined,
-        parentId: undefined,
-        order: 0,
-        isActive: true,
-        createdBy: "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
+      const assignedResourcesList: WorkspaceResource[] =
+        resourcePermissions.map((rp) => ({
+          resourceId: rp.resourceId,
+          resourceName: rp.resourceName,
+          workspaceId: workspaceId,
+          description: undefined,
+          url: undefined,
+          icon: undefined,
+          parentId: undefined,
+          order: 0,
+          isActive: true,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
 
       // Group permissions by resource
       const groups = groupPermissionAssignments(
@@ -280,7 +298,9 @@ export default function AssignPermissionsPage() {
     } catch (error) {
       console.error("Failed to load role permissions", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to load role permissions"
+        error instanceof Error
+          ? error.message
+          : "Failed to load role permissions"
       );
       setRoleAssignments([]);
       setAllResources([]);
@@ -305,8 +325,10 @@ export default function AssignPermissionsPage() {
     parentId: string | null | undefined = null,
     level: number = 0
   ): Array<WorkspaceResource & { displayName: string; level: number }> => {
-    const result: Array<WorkspaceResource & { displayName: string; level: number }> = [];
-    
+    const result: Array<
+      WorkspaceResource & { displayName: string; level: number }
+    > = [];
+
     // Filter resources by parentId (for flat structure)
     // If parentId is null, get top-level resources (no parentId or parentId is null)
     const filteredResources = resources.filter((r) => {
@@ -318,7 +340,7 @@ export default function AssignPermissionsPage() {
         return r.parentId === parentId;
       }
     });
-    
+
     filteredResources.forEach((resource) => {
       const indent = "  ".repeat(level);
       const prefix = level > 0 ? "└─ " : "";
@@ -327,9 +349,13 @@ export default function AssignPermissionsPage() {
         displayName: `${indent}${prefix}${resource.resourceName?.trim() || "Unnamed Resource"}`,
         level,
       });
-      
+
       // If resource has children array, use those first (this handles tree structure)
-      if (resource.children && Array.isArray(resource.children) && resource.children.length > 0) {
+      if (
+        resource.children &&
+        Array.isArray(resource.children) &&
+        resource.children.length > 0
+      ) {
         resource.children.forEach((child) => {
           const childIndent = "  ".repeat(level + 1);
           result.push({
@@ -337,9 +363,13 @@ export default function AssignPermissionsPage() {
             displayName: `${childIndent}└─ ${child.resourceName?.trim() || "Unnamed Resource"}`,
             level: level + 1,
           });
-          
+
           // Recursively add nested children if they exist
-          if (child.children && Array.isArray(child.children) && child.children.length > 0) {
+          if (
+            child.children &&
+            Array.isArray(child.children) &&
+            child.children.length > 0
+          ) {
             const nestedChildren = flattenResourcesWithHierarchy(
               child.children as WorkspaceResource[],
               child.resourceId,
@@ -359,7 +389,7 @@ export default function AssignPermissionsPage() {
         result.push(...children);
       }
     });
-    
+
     return result;
   };
 
@@ -369,8 +399,14 @@ export default function AssignPermissionsPage() {
       return;
     }
 
-    const resourceName = roleAssignments.find(g => g.resourceId === resourceId)?.resourceName || "this resource";
-    if (!confirm(`Are you sure you want to unassign all permissions for "${resourceName}"?`)) {
+    const resourceName =
+      roleAssignments.find((g) => g.resourceId === resourceId)?.resourceName ||
+      "this resource";
+    if (
+      !confirm(
+        `Are you sure you want to unassign all permissions for "${resourceName}"?`
+      )
+    ) {
       return;
     }
 
@@ -510,13 +546,12 @@ export default function AssignPermissionsPage() {
   if (!role) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Assign Permissions"
-          description="Role not found"
-        />
+        <PageHeader title="Assign Permissions" description="Role not found" />
         <Card>
           <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">The requested role could not be found.</p>
+            <p className="text-muted-foreground">
+              The requested role could not be found.
+            </p>
             <Button onClick={() => router.back()} className="mt-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Go Back
@@ -587,7 +622,9 @@ export default function AssignPermissionsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleUnassignResource(group.resourceId)}
+                          onClick={() =>
+                            handleUnassignResource(group.resourceId)
+                          }
                           disabled={isAssigning}
                           className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                           title="Unassign all permissions for this resource"
@@ -645,14 +682,16 @@ export default function AssignPermissionsPage() {
                       <SelectValue placeholder="Select a resource" />
                     </SelectTrigger>
                     <SelectContent>
-                      {flattenResourcesWithHierarchy(allResources).map((resource) => (
-                        <SelectItem
-                          key={resource.resourceId}
-                          value={resource.resourceId}
-                        >
-                          {resource.displayName}
-                        </SelectItem>
-                      ))}
+                      {flattenResourcesWithHierarchy(allResources).map(
+                        (resource) => (
+                          <SelectItem
+                            key={resource.resourceId}
+                            value={resource.resourceId}
+                          >
+                            {resource.displayName}
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -660,7 +699,10 @@ export default function AssignPermissionsPage() {
                   <Label>Permissions</Label>
                   {selectedResourceId && (
                     <p className="text-xs text-muted-foreground">
-                      {roleAssignments.find(g => g.resourceId === selectedResourceId)?.permissions.length || 0} permission(s) currently assigned to this resource
+                      {roleAssignments.find(
+                        (g) => g.resourceId === selectedResourceId
+                      )?.permissions.length || 0}{" "}
+                      permission(s) currently assigned to this resource
                     </p>
                   )}
                   <div className="space-y-2 max-h-[260px] overflow-y-auto border rounded-lg p-3">
@@ -671,52 +713,55 @@ export default function AssignPermissionsPage() {
                     ) : (
                       permissions.map((permission) => {
                         const isAssigned = selectedResourceId
-                          ? getPermissionIdsForResource(selectedResourceId, roleAssignments).includes(permission.permissionId)
+                          ? getPermissionIdsForResource(
+                              selectedResourceId,
+                              roleAssignments
+                            ).includes(permission.permissionId)
                           : false;
                         return (
-                        <div
-                          key={permission.permissionId}
-                          className="flex items-center space-x-2"
-                        >
-                          <Checkbox
-                            id={`perm-${permission.permissionId}`}
-                            checked={selectedPermissionIds.includes(
-                              permission.permissionId
-                            )}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedPermissionIds([
-                                  ...selectedPermissionIds,
-                                  permission.permissionId,
-                                ]);
-                              } else {
-                                setSelectedPermissionIds(
-                                  selectedPermissionIds.filter(
-                                    (id) => id !== permission.permissionId
-                                  )
-                                );
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`perm-${permission.permissionId}`}
-                            className="flex-1 cursor-pointer"
+                          <div
+                            key={permission.permissionId}
+                            className="flex items-center space-x-2"
                           >
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">
-                                {permission.permissionName}
-                              </p>
-                              {isAssigned && (
-                                <Badge variant="outline" className="text-xs">
-                                  Assigned
-                                </Badge>
+                            <Checkbox
+                              id={`perm-${permission.permissionId}`}
+                              checked={selectedPermissionIds.includes(
+                                permission.permissionId
                               )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {permission.permissionCode}
-                            </p>
-                          </label>
-                        </div>
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedPermissionIds([
+                                    ...selectedPermissionIds,
+                                    permission.permissionId,
+                                  ]);
+                                } else {
+                                  setSelectedPermissionIds(
+                                    selectedPermissionIds.filter(
+                                      (id) => id !== permission.permissionId
+                                    )
+                                  );
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`perm-${permission.permissionId}`}
+                              className="flex-1 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">
+                                  {permission.permissionName}
+                                </p>
+                                {isAssigned && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Assigned
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {permission.permissionCode}
+                              </p>
+                            </label>
+                          </div>
                         );
                       })
                     )}

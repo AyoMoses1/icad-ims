@@ -74,13 +74,14 @@ import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client";
 import {
   extractPermissionAssignments,
   groupPermissionAssignments,
+  resourcePermissionDtoToPermissionIds,
   type RolePermissionGroup,
 } from "@/lib/permission-utils";
 
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const workspaceId = params.workspaceId as string;
+  const workspaceId = (params?.workspaceId as string) ?? "";
   const { setCurrentWorkspace } = useWorkspaceStore();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -107,10 +108,8 @@ export default function WorkspaceDetailPage() {
   >([]);
   const [rolePermissionsSummaryRole, setRolePermissionsSummaryRole] =
     useState<WorkspaceRole | null>(null);
-  const [
-    isLoadingRolePermissionsSummary,
-    setIsLoadingRolePermissionsSummary,
-  ] = useState(false);
+  const [isLoadingRolePermissionsSummary, setIsLoadingRolePermissionsSummary] =
+    useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<WorkspaceMember | null>(
     null
@@ -210,8 +209,8 @@ export default function WorkspaceDetailPage() {
           apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
             `/api/workspaces/${workspaceId}/resources`
           ),
-          apiGet<WorkspaceRole[] | PaginatedResponse<WorkspaceRole>>(
-            `/api/workspaces/${workspaceId}/roles`
+          apiGet<{ workspaceRoleId: string; roleName: string }[]>(
+            `/api/workspaces/${workspaceId}/roles/domain`
           ),
           apiGet<WorkspaceMember[] | PaginatedResponse<WorkspaceMember>>(
             `/api/workspaces/${workspaceId}/members`
@@ -250,27 +249,29 @@ export default function WorkspaceDetailPage() {
         setResources([]);
       }
       if (rolesResult.success && rolesResult.data) {
-        // Handle both direct array and PaginatedResponse formats
+        // Domain roles endpoint returns { workspaceRoleId, roleName }[]
         const rawRolesData = Array.isArray(rolesResult.data)
           ? rolesResult.data
-          : rolesResult.data.items || [];
+          : [];
 
-        // Transform roles to match expected structure
-        // Backend returns roleName and roleDescription
-        // Also includes permissions array (Issue #3 fix)
         const rolesData: WorkspaceRole[] = rawRolesData.map((role: any) => ({
-          ...role,
+          workspaceRoleId: role.workspaceRoleId,
+          userWorkspaceId: role.userWorkspaceId || "",
+          workspaceId: role.workspaceId || workspaceId,
           name: role.roleName || role.name || "Unnamed Role",
           description: role.roleDescription || role.description || "",
-          // Preserve permissions array if present (API now includes permissions)
+          isActive: role.isActive ?? true,
+          isSystemRole: role.isSystemRole ?? false,
+          createdBy: role.createdBy || "",
+          createdAt: role.createdAt || "",
+          updatedAt: role.updatedAt || "",
           permissions: role.permissions || undefined,
+          roleName: role.roleName,
+          roleDescription: role.roleDescription,
         }));
 
         if (process.env.NODE_ENV === "development") {
-          console.log("Roles response structure:", {
-            isArray: Array.isArray(rolesResult.data),
-            hasItems:
-              !Array.isArray(rolesResult.data) && rolesResult.data.items,
+          console.log("Roles (domain) response structure:", {
             count: rolesData.length,
             sample: rolesData.length > 0 ? rolesData[0] : null,
           });
@@ -495,9 +496,8 @@ export default function WorkspaceDetailPage() {
 
   const loadAllPermissions = async (): Promise<Permission[]> => {
     try {
-      const result = await apiGet<PaginatedResponse<Permission>>(
-        "/api/permissions"
-      );
+      const result =
+        await apiGet<PaginatedResponse<Permission>>("/api/permissions");
       if (result.success && result.data) {
         // Extract the items array from the paginated response
         const permissionsList = (result.data.items || []) as Permission[];
@@ -661,6 +661,7 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  /* Role creation moved to admin side - owner can only view and assign roles to users
   const handleAddRole = async () => {
     if (!roleForm.name.trim()) {
       toast.error("Role name is required");
@@ -699,70 +700,32 @@ export default function WorkspaceDetailPage() {
       setIsSubmitting(false);
     }
   };
+  */
 
   const loadRolePermissions = async (
     roleId: string,
     resourceId: string
   ): Promise<string[]> => {
     try {
-      // Fetch existing permissions for this role and resource
-      const result = await apiGet<any>(
-        `/api/workspaces/${workspaceId}/roles/${roleId}/permissions?resourceId=${resourceId}`
+      const result = await apiGet<WorkspaceRole>(
+        `/api/workspaces/${workspaceId}/roles/${roleId}`
       );
 
-      if (result.success && result.data) {
-        // Handle different response structures
-        const data = result.data;
-
-        // Case 1: Direct permissionIds array in data
-        if (data.permissionIds && Array.isArray(data.permissionIds)) {
-          console.log("Found permissionIds array:", data.permissionIds);
-          return data.permissionIds.filter(
-            (id: unknown): id is string => typeof id === "string"
-          );
-        }
-
-        // Case 2: Permissions array with permissionId field
-        if (data.permissions && Array.isArray(data.permissions)) {
-          const ids = data.permissions
-            .map((p: any) => p.permissionId || p.id)
-            .filter(
-              (id: unknown): id is string => typeof id === "string" && !!id
-            );
-          console.log("Found permissions array, extracted IDs:", ids);
-          return ids;
-        }
-
-        // Case 3: Data is directly an array of permission IDs
-        if (Array.isArray(data)) {
-          const ids = data.filter(
-            (id: unknown): id is string => typeof id === "string" && !!id
-          );
-          console.log("Data is array of IDs:", ids);
-          return ids;
-        }
-
-        // Case 4: Data has nested structure with items array
-        if (data.items && Array.isArray(data.items)) {
-          const ids = data.items
-            .map((item: any) => item.permissionId || item.id || item)
-            .filter(
-              (id: unknown): id is string => typeof id === "string" && !!id
-            );
-          console.log("Found items array, extracted IDs:", ids);
-          return ids;
-        }
-
-        console.warn(
-          "Unexpected response structure for role permissions:",
-          data
-        );
+      if (!result.success || !result.data?.permissions) {
+        return [];
       }
 
-      return [];
+      const rolePerm = result.data.permissions.find(
+        (p) => p.resourceId === resourceId
+      );
+      const permissionsSnapshot =
+        allPermissions.length > 0 ? allPermissions : await loadAllPermissions();
+      return resourcePermissionDtoToPermissionIds(
+        rolePerm,
+        permissionsSnapshot
+      );
     } catch (error) {
       console.error("Failed to fetch existing permissions for role:", error);
-      // Return empty array on error so UI still works
       return [];
     }
   };
@@ -775,8 +738,8 @@ export default function WorkspaceDetailPage() {
       const permissionsSnapshot =
         allPermissions.length > 0 ? allPermissions : await loadAllPermissions();
 
-      const result = await apiGet<any>(
-        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}/permissions`
+      const result = await apiGet<WorkspaceRole>(
+        `/api/workspaces/${workspaceId}/roles/${role.workspaceRoleId}`
       );
 
       if (result.success && result.data) {
@@ -803,6 +766,7 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  /* Assigning permissions moved to admin side - owner can only view and assign roles to users
   const handleAssignPermissions = async () => {
     if (!selectedResource || selectedPermissionIds.length === 0) {
       toast.error("Please select a resource and at least one permission");
@@ -839,6 +803,7 @@ export default function WorkspaceDetailPage() {
       setIsSubmitting(false);
     }
   };
+  */
 
   const handleDeleteWorkspace = async () => {
     setIsSubmitting(true);
@@ -1107,10 +1072,11 @@ export default function WorkspaceDetailPage() {
                     Roles configured for this workspace
                   </CardDescription>
                 </div>
-                <Button onClick={() => setIsAddRoleOpen(true)}>
+                {/* Role creation moved to admin side - owner can only view and assign roles to users */}
+                {/* <Button onClick={() => setIsAddRoleOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Role
-                </Button>
+                </Button> */}
               </div>
             </CardHeader>
             <CardContent>
@@ -1167,7 +1133,8 @@ export default function WorkspaceDetailPage() {
                           <Eye className="mr-2 h-4 w-4" />
                           View Access
                         </Button>
-                        <Button
+                        {/* Assigning permissions moved to admin side - owner can only view and assign roles to users */}
+                        {/* <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
@@ -1175,12 +1142,14 @@ export default function WorkspaceDetailPage() {
                               workspaceId,
                               roleId: role.workspaceRoleId,
                             });
-                            router.push(`/assign-permissions?${params.toString()}`);
+                            router.push(
+                              `/assign-permissions?${params.toString()}`
+                            );
                           }}
                         >
                           <Key className="mr-2 h-4 w-4" />
                           Assign Permissions
-                        </Button>
+                        </Button> */}
                         <Badge
                           variant={role.isActive ? "default" : "secondary"}
                         >
@@ -1589,7 +1558,7 @@ export default function WorkspaceDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Role Dialog */}
+      {/* Add Role Dialog - moved to admin side; owner can only view and assign roles to users
       <Dialog open={isAddRoleOpen} onOpenChange={setIsAddRoleOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1632,8 +1601,9 @@ export default function WorkspaceDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      */}
 
-      {/* Assign Permissions Dialog */}
+      {/* Assign Permissions Dialog - moved to admin side; owner can only view and assign roles to users
       <Dialog
         open={isAssignPermissionsOpen}
         onOpenChange={setIsAssignPermissionsOpen}
@@ -1656,7 +1626,6 @@ export default function WorkspaceDetailPage() {
                     (r) => r.resourceId === value
                   );
                   setSelectedResource(resource || null);
-                  // Load existing permissions when resource changes
                   if (resource && selectedRole) {
                     setIsLoadingRolePermissions(true);
                     try {
@@ -1775,6 +1744,7 @@ export default function WorkspaceDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      */}
 
       {/* View Role Access Dialog */}
       <Dialog

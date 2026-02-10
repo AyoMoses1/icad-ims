@@ -19,7 +19,8 @@ function getWasteManagementBaseUrl(): string {
 }
 
 /** API path for fetching waste collection operators */
-const WCO_MASTER_DATA_PATH = "/waste-management/api/v1/MasterData/waste-collection-operators";
+const WCO_MASTER_DATA_PATH =
+  "/waste-management/api/v1/MasterData/waste-collection-operators";
 
 /**
  * Get WCO companies for dropdown (company selection when creating WCO_EMPLOYEE users).

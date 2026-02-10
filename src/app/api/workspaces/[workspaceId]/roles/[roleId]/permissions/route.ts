@@ -1,31 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiPost, apiGet, apiDeleteWithBody } from "@/lib/api-client";
-import { WorkspaceRolePermission } from "@/types";
+import { WorkspaceRolePermission, WorkspaceRole } from "@/types";
 
 // GET /api/workspaces/[workspaceId]/roles/[roleId]/permissions - Get permissions assigned to role
+// Backend view endpoint is GET .../roles/{roleId} (no /permissions). We proxy to that and return the role (which includes permissions).
 export async function GET(
   request: NextRequest,
   { params }: { params: { workspaceId: string; roleId: string } }
 ) {
   try {
-    const { searchParams } = new URL(request.url);
-    const resourceId = searchParams.get("resourceId");
+    const endpoint = `/api/workspaces/${params.workspaceId}/roles/${params.roleId}`;
 
-    // Build query string
-    const queryParams = new URLSearchParams();
-    if (resourceId) {
-      queryParams.append("resourceId", resourceId);
-    }
-
-    const queryString = queryParams.toString();
-    const endpoint = `/api/workspaces/${params.workspaceId}/roles/${params.roleId}/permissions${
-      queryString ? `?${queryString}` : ""
-    }`;
-
-    const response = await apiGet<{
-      permissionIds?: string[];
-      permissions?: Array<{ permissionId: string; [key: string]: unknown }>;
-    }>(endpoint);
+    const response = await apiGet<WorkspaceRole>(endpoint);
 
     return NextResponse.json(response);
   } catch (error) {
