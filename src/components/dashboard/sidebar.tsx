@@ -586,7 +586,7 @@ export function Sidebar() {
               icon={Mail}
             />
           )}
-          {/* Maritime Intelligence - Only show for super admin */}
+          {/* Maritime Intelligence - Only show for admin users */}
           {userInfo?.isAdmin && (
             <NavLink
               item={{
@@ -596,7 +596,7 @@ export function Sidebar() {
               icon={Ship}
             />
           )}
-          {/* Debtors Analysis - Only show for super admin */}
+          {/* Debtors Analysis - Only show for admin users */}
           {userInfo?.isAdmin && (
             <NavLink
               item={{
