@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 
-const SHIP_TRACKING_URL = "https://www.myshiptracking.com";
+const MARINETRAFFIC_URL =
+  "https://www.marinetraffic.com/en/ais/embed/zoom:6/centery:2.7/centerx:5.5/maptype:0/shownames:false/mmsi:0/shipid:0/fleet:/vtypes:/showmenu:true/remember:false";
 
 export default function MaritimeIntelligencePage() {
   return (
@@ -14,11 +15,11 @@ export default function MaritimeIntelligencePage() {
         description="Track vessels and maritime traffic"
       />
 
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden mt-4">
         <div className="p-3 border-b bg-muted/50 flex items-center justify-end">
           <Button variant="outline" size="sm" asChild className="gap-2">
             <a
-              href={SHIP_TRACKING_URL}
+              href={MARINETRAFFIC_URL}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -28,8 +29,8 @@ export default function MaritimeIntelligencePage() {
           </Button>
         </div>
         <iframe
-          src={SHIP_TRACKING_URL}
-          title="Maritime Intelligence - My Ship Tracking"
+          src={MARINETRAFFIC_URL}
+          title="Maritime Intelligence - MarineTraffic"
           className="w-full h-[calc(100vh-220px)] min-h-[500px] border-0"
           loading="lazy"
         />
