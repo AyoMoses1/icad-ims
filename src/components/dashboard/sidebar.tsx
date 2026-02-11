@@ -586,14 +586,24 @@ export function Sidebar() {
               icon={Mail}
             />
           )}
-          {/* Maritime Intelligence - Only show for non-admin users */}
-          {!userInfo?.isAdmin && (
+          {/* Maritime Intelligence - Only show for super admin */}
+          {userInfo?.isAdmin && (
             <NavLink
               item={{
                 title: "Maritime Intelligence",
                 href: "/maritime-intelligence",
               }}
               icon={Ship}
+            />
+          )}
+          {/* Debtors Analysis - Only show for super admin */}
+          {userInfo?.isAdmin && (
+            <NavLink
+              item={{
+                title: "Debtors Analysis",
+                href: "/debtors-analysis",
+              }}
+              icon={BarChart}
             />
           )}
           {/* Admin Section - Only show if user is admin */}
