@@ -56,6 +56,7 @@ import {
   Shield,
   FolderTree,
   Ship,
+  History,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -671,6 +672,10 @@ export function Sidebar() {
                   href: "/admin/workspaces",
                 }}
                 icon={Building}
+              />
+              <NavLink
+                item={{ title: "Audit Logs", href: "/audit" }}
+                icon={History}
               />
             </>
           )}
