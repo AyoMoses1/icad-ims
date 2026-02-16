@@ -3,9 +3,10 @@
  * Only SuperAdmin users (email contains @rdlc.com) can perform update and delete operations
  */
 
-import { apiGet, apiPut, apiDelete, type ApiResponse } from "@/lib/api-client";
+import { apiGet, apiPost, apiPut, apiDelete, type ApiResponse } from "@/lib/api-client";
 import type {
   WorkspaceResourceTreeDto,
+  CreateWorkspaceResourceRequestDto,
   UpdateWorkspaceResourceRequestDto,
 } from "@/types";
 
@@ -30,6 +31,20 @@ export async function getWorkspaceResourceById(
 ): Promise<ApiResponse<WorkspaceResourceTreeDto>> {
   return apiGet<WorkspaceResourceTreeDto>(
     `/api/workspaces/${workspaceId}/resources/${resourceId}`
+  );
+}
+
+/**
+ * Create a new workspace resource
+ * Only SuperAdmin can create resources
+ */
+export async function createWorkspaceResource(
+  workspaceId: string,
+  data: CreateWorkspaceResourceRequestDto
+): Promise<ApiResponse<WorkspaceResourceTreeDto>> {
+  return apiPost<WorkspaceResourceTreeDto>(
+    `/api/workspaces/${workspaceId}/resources`,
+    data
   );
 }
 

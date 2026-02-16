@@ -447,6 +447,7 @@ export interface UserInfo {
   roles?: string[];
   // Admin fields
   isAdmin?: boolean;
+  isOwner?: boolean;
   adminDetails?: {
     isSystemAdmin: boolean;
     isWorkspaceAdmin: boolean;
@@ -462,6 +463,20 @@ export interface UserInfo {
       permissions: string[];
     }>;
   };
+  ownerDetails?: {
+    isOwner?: boolean;
+    ownerWorkspaces?: Array<{
+      workspaceId: string;
+      workspaceName: string;
+    }>;
+  };
+  // Tenant switching fields (assist mode)
+  isSwitched?: boolean;
+  isInOwnTenant?: boolean;
+  switchedTenantId?: string;
+  switchedUserId?: string;
+  switchedUserName?: string;
+  switchedUserEmail?: string;
   [key: string]: unknown; // Allow additional properties
 }
 
@@ -643,43 +658,127 @@ export interface SwitchTenantRequestDto {
   tenantId: string;
 }
 
+// Switch Tenant Response (LoginResponseDto format)
+export interface SwitchTenantResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    id: string;
+    userName: string;
+    email: string;
+    firstName: string;
+    middleName?: string | null;
+    lastName: string;
+    tenantId: string;
+  };
+}
+
+// ============================================================================
+// Domain Roles Types (Simple workspace roles for lookups)
+// ============================================================================
+
+export interface SimpleDomainRoleDto {
+  workspaceRoleId: string;
+  roleName: string;
+}
+
+// ============================================================================
+// WCO (Waste Collection Operator) Types – for admin user creation
+// ============================================================================
+
+/** WCO company item from Waste Management MasterData (for dropdown) */
+export interface WcoCompanyDto {
+  id: string;
+  name: string;
+  description?: string;
+  code?: string;
+}
+
 // ============================================================================
 // Admin Role Types
 // ============================================================================
 
-export interface AdminRoleDto {
-  adminRoleId: string;
-  workspaceRoleId?: string; // API may return workspaceRoleId instead
-  roleName?: string | null;
-  roleCode?: string | null;
-  description?: string | null;
-  isSystemRole: boolean;
-  isActive: boolean;
-  isDeleted: boolean;
-  createdBy?: string | null;
-  dateCreated?: string | null;
-  dateModified?: string | null;
-  modifiedBy?: string | null;
-  // Additional fields that may come from API
-  workspaceId?: string;
-  userWorkspaceId?: string;
-  roleDescription?: string | null;
+/**
+ * AdminRoleListItemDto - Returned by GET /api/admin-roles?workspaceId=...
+ * List endpoint returns workspaceRoleId, roleName, and isAdmin
+ */
+export interface AdminRoleListItemDto {
+  workspaceRoleId: string;
+  roleName: string;
+  /** When true, administrative role; when false, domain role (workspace-scoped, can have resource permissions). */
   isAdmin?: boolean;
-  permissions?: any[];
+}
+
+/**
+ * AdminRoleDto - Full admin role details
+ * Returned by GET /api/admin-roles/{id}?workspaceId=...
+ * Also returned by POST (create) and PUT (update) operations
+ */
+export interface AdminRoleDto {
+  workspaceRoleId: string;
+  workspaceId: string;
+  userWorkspaceId?: string;
+  roleName: string;
+  roleCode?: string | null;
+  roleDescription?: string | null;
+  isSystemRole: boolean;
+  isAdmin: boolean;
+  permissions?: AdminRolePermissionDto[];
+}
+
+/**
+ * Permission details within an admin role
+ */
+export interface AdminRolePermissionDto {
+  resourceId: string;
+  resourceName: string;
+  canCreate: boolean;
+  canRead: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canImport: boolean;
+  canExport: boolean;
+  canApprove: boolean;
+  canManage: boolean;
+  canReject: boolean;
 }
 
 export interface CreateAdminRoleRequestDto {
-  roleName?: string | null;
+  roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
-  isAdmin?: boolean;
+  /** When true, creates an administrative role. When false, creates a domain role tied to a workspace (workspaceId required). */
+  isAdmin: boolean;
 }
 
 export interface UpdateAdminRoleRequestDto {
-  roleName?: string | null;
+  roleName: string;
   roleCode?: string | null;
   roleDescription?: string | null;
-  isActive?: boolean;
+}
+
+/**
+ * Request body for assigning permissions to an admin role
+ * Used by POST /api/admin-roles/{id}/permissions
+ */
+export interface AssignPermissionsToRoleRequestDto {
+  resourceId: string;
+  permissionIds: string[];
+}
+
+/**
+ * Request body for unassigning permissions from a role
+ * Used by DELETE /api/admin-roles/{id}/permissions and
+ * DELETE /api/workspaces/{workspaceId}/roles/{roleId}/permissions
+ * - permissionIds: required when unassignResource is false; can be empty when unassignResource is true
+ * - unassignResource: when true, unassigns the entire resource (removes role-resource link and all permissions)
+ */
+export interface UnassignPermissionsRequestDto {
+  resourceId: string;
+  permissionIds: string[];
+  unassignResource?: boolean;
 }
 
 // ============================================================================
@@ -690,14 +789,28 @@ export interface WorkspaceResourceTreeDto {
   resourceId: string;
   workspaceId: string;
   resourceName?: string | null;
+  description?: string | null;
   url?: string | null;
   parentId?: string | null;
+  order?: number | null;
+  isActive?: boolean;
   children?: WorkspaceResourceTreeDto[] | null;
+}
+
+export interface CreateWorkspaceResourceRequestDto {
+  resourceName: string;
+  description?: string | null;
+  url?: string | null;
+  parentId?: string | null;
+  order?: number | null;
+  isActive?: boolean;
 }
 
 export interface UpdateWorkspaceResourceRequestDto {
   resourceName?: string | null;
+  description?: string | null;
   url?: string | null;
   parentId?: string | null;
+  order?: number | null;
   isActive?: boolean | null;
 }

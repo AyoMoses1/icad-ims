@@ -114,7 +114,8 @@ export default function UsersPage() {
         // Map User[] to UserWithFullName[] by adding fullName property
         const usersWithFullName: UserWithFullName[] = usersData.map((user) => ({
           ...user,
-          fullName: `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim(),
+          fullName:
+            `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim(),
         }));
 
         setUsers(usersWithFullName);

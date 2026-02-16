@@ -2,14 +2,18 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 function VerifyEmailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const userId = searchParams?.get("userId") ?? null;
+  const token = searchParams?.get("token") ?? null;
+  const success = searchParams?.get("success") ?? null;
+  const error = searchParams?.get("error") ?? null;
 
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading"
@@ -17,53 +21,96 @@ function VerifyEmailContent() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    // Handle redirect from GET endpoint (success/error query params)
+    if (success === "true") {
+      setStatus("success");
+      setMessage(
+        "Your email has been successfully verified. You can now sign in."
+      );
+      return;
+    }
+
+    if (error) {
+      setStatus("error");
+      setMessage(decodeURIComponent(error));
+      return;
+    }
+
+    // Handle POST verification (userId and token from email link)
     const verifyEmail = async () => {
-      if (!token) {
+      if (!userId || !token) {
         setStatus("error");
-        setMessage("Invalid verification link. Please request a new one.");
+        setMessage(
+          "Invalid verification link. Please check your email for a valid verification link or request a new one."
+        );
         return;
       }
 
       try {
+        // Decode the token if it's URL-encoded (it should already be decoded by searchParams.get, but just in case)
+        const decodedToken = decodeURIComponent(token);
+
         const response = await fetch("/api/auth/verify-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({
+            userId: userId.trim(),
+            token: decodedToken,
+          }),
         });
 
         const result = await response.json();
 
         if (!response.ok) {
-          throw new Error(result.error?.message || "Verification failed");
+          throw new Error(
+            result.error?.message || result.message || "Verification failed"
+          );
+        }
+
+        if (!result.success) {
+          throw new Error(result.error?.message || "Email verification failed");
         }
 
         setStatus("success");
-        setMessage("Your email has been successfully verified.");
-      } catch (error) {
-        setStatus("error");
         setMessage(
+          "Your email has been successfully verified. You can now sign in to your account."
+        );
+      } catch (error) {
+        console.error("Email verification error:", error);
+        setStatus("error");
+        const errorMessage =
           error instanceof Error
             ? error.message
-            : "Verification failed. Please try again."
-        );
+            : "Verification failed. The link may have expired or is invalid. Please request a new verification email.";
+        setMessage(errorMessage);
       }
     };
 
-    verifyEmail();
-  }, [token]);
+    // Only verify if we have both userId and token
+    if (userId && token) {
+      verifyEmail();
+    } else if (!userId && !token && !success && !error) {
+      // If no params at all, show error
+      setStatus("error");
+      setMessage(
+        "Invalid verification link. Please check your email for a valid verification link."
+      );
+    }
+  }, [userId, token, success, error]);
 
   if (status === "loading") {
     return (
       <div className="space-y-6 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="mx-auto w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-500" />
         </div>
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">
             Verifying your email...
           </h1>
           <p className="text-sm text-muted-foreground">
-            Please wait while we verify your email address.
+            Please wait while we verify your email address. This may take a few
+            seconds.
           </p>
         </div>
       </div>
@@ -87,10 +134,8 @@ function VerifyEmailContent() {
             <Link href="/auth/signin">Back to sign in</Link>
           </Button>
           <p className="text-sm text-muted-foreground">
-            Need a new verification link?{" "}
-            <Link href="/auth/signin" className="text-primary hover:underline">
-              Contact support
-            </Link>
+            If you need a new verification link, please contact support or try
+            signing up again.
           </p>
         </div>
       </div>
@@ -131,22 +176,3 @@ export default function VerifyEmailPage() {
     </Suspense>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

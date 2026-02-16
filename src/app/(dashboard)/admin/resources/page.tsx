@@ -10,9 +10,7 @@ import {
   File,
   ChevronRight,
   ChevronDown,
-  Shield,
-  ShieldCheck,
-  ShieldX,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -46,14 +45,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader, ConfirmDialog } from "@/components/shared";
 import {
   WorkspaceResourceTreeDto,
-  Workspace,
   UserInfo,
 } from "@/types";
 import { useWorkspaceStore } from "@/store";
 import { apiGetAuth } from "@/lib/api-client";
 import {
   getWorkspaceResources,
-  getWorkspaceResourceById,
+  createWorkspaceResource,
   updateWorkspaceResource,
   deleteWorkspaceResource,
 } from "@/lib/services/workspace-resource-service";
@@ -68,17 +66,20 @@ export default function AdminResourcesPage() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
   const [resources, setResources] = useState<ResourceTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedResource, setSelectedResource] = useState<ResourceTreeNode | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [resourceMode, setResourceMode] = useState<"create" | "edit">("create");
 
   const [formData, setFormData] = useState({
     resourceName: "",
+    description: "",
     url: "",
     parentId: "",
+    order: 0,
     isActive: true,
   });
 
@@ -172,33 +173,39 @@ export default function AdminResourcesPage() {
     setResources((prev) => toggleExpand(resourceId, prev));
   };
 
-  const handleEdit = async (resource: ResourceTreeNode) => {
-    try {
-      const result = await getWorkspaceResourceById(
-        selectedWorkspaceId,
-        resource.resourceId
-      );
-      if (result.success && result.data) {
-        // Convert WorkspaceResourceTreeDto to ResourceTreeNode
-        const resourceNode: ResourceTreeNode = {
-          ...result.data,
-          expanded: false,
-          children: result.data.children
-            ? buildResourceTree(result.data.children)
-            : undefined,
-        };
-        setSelectedResource(resourceNode);
-        setFormData({
-          resourceName: result.data.resourceName || "",
-          url: result.data.url || "",
-          parentId: result.data.parentId || "",
-          isActive: true, // API doesn't return isActive, assume true for active resources
-        });
-        setIsEditOpen(true);
-      }
-    } catch (error) {
-      toast.error("Failed to load resource details");
+  const resetForm = () => {
+    setFormData({
+      resourceName: "",
+      description: "",
+      url: "",
+      parentId: "",
+      order: 0,
+      isActive: true,
+    });
+  };
+
+  const handleCreate = (parentId?: string) => {
+    setResourceMode("create");
+    setSelectedResource(null);
+    resetForm();
+    if (parentId) {
+      setFormData((prev) => ({ ...prev, parentId }));
     }
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (resource: ResourceTreeNode) => {
+    setResourceMode("edit");
+    setSelectedResource(resource);
+    setFormData({
+      resourceName: resource.resourceName || "",
+      description: resource.description || "",
+      url: resource.url || "",
+      parentId: resource.parentId || "",
+      order: resource.order || 0,
+      isActive: resource.isActive ?? true,
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (resource: ResourceTreeNode) => {
@@ -206,36 +213,63 @@ export default function AdminResourcesPage() {
     setIsDeleteOpen(true);
   };
 
-  const handleSubmitEdit = async () => {
-    if (!selectedResource || !selectedWorkspaceId) return;
+  const handleSubmit = async () => {
+    if (!selectedWorkspaceId) return;
+    if (!formData.resourceName.trim()) {
+      toast.error("Resource name is required");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const result = await updateWorkspaceResource(
-        selectedWorkspaceId,
-        selectedResource.resourceId,
-        {
-          resourceName: formData.resourceName || null,
+      if (resourceMode === "create") {
+        const result = await createWorkspaceResource(selectedWorkspaceId, {
+          resourceName: formData.resourceName,
+          description: formData.description || null,
           url: formData.url || null,
           parentId: formData.parentId || null,
+          order: Number(formData.order) || 0,
           isActive: formData.isActive,
-        }
-      );
+        });
 
-      if (result.success) {
-        toast.success("Resource updated successfully");
-        setIsEditOpen(false);
-        setSelectedResource(null);
-        loadResources();
+        if (result.success) {
+          toast.success("Resource created successfully");
+          setIsDialogOpen(false);
+          resetForm();
+          loadResources();
+        } else {
+          toast.error(result.message || "Failed to create resource");
+        }
       } else {
-        toast.error(result.message || "Failed to update resource");
+        if (!selectedResource) return;
+        const result = await updateWorkspaceResource(
+          selectedWorkspaceId,
+          selectedResource.resourceId,
+          {
+            resourceName: formData.resourceName || null,
+            description: formData.description || null,
+            url: formData.url || null,
+            parentId: formData.parentId || null,
+            order: Number(formData.order) || 0,
+            isActive: formData.isActive,
+          }
+        );
+
+        if (result.success) {
+          toast.success("Resource updated successfully");
+          setIsDialogOpen(false);
+          setSelectedResource(null);
+          loadResources();
+        } else {
+          toast.error(result.message || "Failed to update resource");
+        }
       }
     } catch (error) {
-      console.error("Error updating resource:", error);
+      console.error("Error saving resource:", error);
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to update resource"
+          : `Failed to ${resourceMode} resource`
       );
     } finally {
       setIsSubmitting(false);
@@ -313,6 +347,11 @@ export default function AdminResourcesPage() {
               <Badge variant="outline" className="text-xs">
                 {resource.url || "—"}
               </Badge>
+              {resource.order !== undefined && resource.order !== null && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  Order: {resource.order}
+                </span>
+              )}
             </div>
             {isSuperAdmin && (
               <DropdownMenu>
@@ -325,6 +364,10 @@ export default function AdminResourcesPage() {
                   <DropdownMenuItem onClick={() => handleEdit(resource)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCreate(resource.resourceId)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Child
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -368,6 +411,14 @@ export default function AdminResourcesPage() {
       <PageHeader
         title="Workspace Resources"
         description="Manage workspace resources and permissions. Only SuperAdmin users can update or delete resources."
+        actions={
+          isSuperAdmin && selectedWorkspaceId ? (
+            <Button onClick={() => handleCreate()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Resource
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* Workspace Selector */}
@@ -401,6 +452,12 @@ export default function AdminResourcesPage() {
         <div className="text-center py-12 text-muted-foreground">
           <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>No resources found for this workspace</p>
+          {isSuperAdmin && (
+            <Button variant="outline" className="mt-4" onClick={() => handleCreate()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add First Resource
+            </Button>
+          )}
         </div>
       ) : (
         <div className="border rounded-lg p-4">
@@ -410,18 +467,22 @@ export default function AdminResourcesPage() {
         </div>
       )}
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Workspace Resource</DialogTitle>
+            <DialogTitle>
+              {resourceMode === "create" ? "Add Workspace Resource" : "Edit Workspace Resource"}
+            </DialogTitle>
             <DialogDescription>
-              Update the resource details. Resources with children cannot be deleted.
+              {resourceMode === "create"
+                ? "Add a new resource to this workspace."
+                : "Update the resource details. Resources with children cannot be deleted."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="resourceName">Resource Name</Label>
+              <Label htmlFor="resourceName">Resource Name *</Label>
               <Input
                 id="resourceName"
                 value={formData.resourceName}
@@ -429,6 +490,18 @@ export default function AdminResourcesPage() {
                   setFormData({ ...formData, resourceName: e.target.value })
                 }
                 placeholder="e.g., Dashboard"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Description of the resource"
+                rows={3}
               />
             </div>
             <div className="space-y-2">
@@ -442,38 +515,53 @@ export default function AdminResourcesPage() {
                 placeholder="e.g., /dashboard"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="parentId">Parent Resource</Label>
-              <Select
-                value={formData.parentId}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, parentId: value })
-                }
-              >
-                <SelectTrigger id="parentId">
-                  <SelectValue placeholder="Select parent (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None (Root Level)</SelectItem>
-                  {selectedWorkspaceId &&
-                    getAllResourcesFlat(resources)
-                      .filter(
-                        (r) =>
-                          r.resourceId !== selectedResource?.resourceId &&
-                          !r.resourceId.includes(
-                            selectedResource?.resourceId || ""
-                          )
-                      )
-                      .map((resource) => (
-                        <SelectItem
-                          key={resource.resourceId}
-                          value={resource.resourceId}
-                        >
-                          {resource.resourceName || "Unnamed"}
-                        </SelectItem>
-                      ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="parentId">Parent Resource</Label>
+                <Select
+                  value={formData.parentId || "none"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, parentId: value === "none" ? "" : value })
+                  }
+                >
+                  <SelectTrigger id="parentId">
+                    <SelectValue placeholder="None (Root Level)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (Root Level)</SelectItem>
+                    {selectedWorkspaceId &&
+                      getAllResourcesFlat(resources)
+                        .filter(
+                          (r) =>
+                            // In edit mode, prevent selecting self or children as parent
+                            resourceMode === "create" ||
+                            (r.resourceId !== selectedResource?.resourceId &&
+                              !r.resourceId.includes(
+                                selectedResource?.resourceId || ""
+                              ))
+                        )
+                        .map((resource) => (
+                          <SelectItem
+                            key={resource.resourceId}
+                            value={resource.resourceId}
+                          >
+                            {resource.resourceName || "Unnamed"}
+                          </SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="order">Order</Label>
+                <Input
+                  id="order"
+                  type="number"
+                  value={formData.order}
+                  onChange={(e) =>
+                    setFormData({ ...formData, order: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -494,13 +582,17 @@ export default function AdminResourcesPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditOpen(false)}
+              onClick={() => setIsDialogOpen(false)}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button onClick={handleSubmitEdit} disabled={isSubmitting}>
-              {isSubmitting ? "Updating..." : "Update Resource"}
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting
+                ? "Saving..."
+                : resourceMode === "create"
+                ? "Add Resource"
+                : "Update Resource"}
             </Button>
           </DialogFooter>
         </DialogContent>

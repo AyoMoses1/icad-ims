@@ -206,7 +206,8 @@ export default function InvitationsPage() {
               invitationsList = result.data;
             } else {
               // It's a PaginatedResponse - extract items
-              const paginatedData = result.data as PaginatedResponse<InvitationDto>;
+              const paginatedData =
+                result.data as PaginatedResponse<InvitationDto>;
               invitationsList = paginatedData.items || [];
             }
 
@@ -266,9 +267,14 @@ export default function InvitationsPage() {
             if (Array.isArray(result.data)) {
               setInvitations(result.data);
               setTotalCount(result.data.length);
-            } else if (result.data && typeof result.data === 'object' && 'items' in result.data) {
+            } else if (
+              result.data &&
+              typeof result.data === "object" &&
+              "items" in result.data
+            ) {
               // It's a PaginatedResponse
-              const paginatedData = result.data as PaginatedResponse<InvitationDto>;
+              const paginatedData =
+                result.data as PaginatedResponse<InvitationDto>;
               setInvitations(paginatedData.items || []);
               setTotalCount(paginatedData.totalCount || 0);
             } else {

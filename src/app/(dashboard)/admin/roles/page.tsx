@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Plus,
   Pencil,
   Trash2,
   MoreHorizontal,
   Shield,
-  ShieldCheck,
-  ShieldX,
+  Key,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,8 +40,18 @@ import {
   ConfirmDialog,
   LoadingPage,
 } from "@/components/shared";
-import { AdminRoleDto } from "@/types";
-import { formatDate } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type {
+  AdminRoleDto,
+  AdminRoleListItemDto,
+  AdminRolePermissionDto,
+} from "@/types";
 import { apiGetAuth } from "@/lib/api-client";
 import type { UserInfo } from "@/types";
 import { useWorkspaceStore } from "@/store";
@@ -51,16 +61,78 @@ import {
   createAdminRole,
   updateAdminRole,
   deleteAdminRole,
+  assignPermissionsToAdminRole,
+  unassignPermissionsFromAdminRole,
+  unassignPermissionsFromWorkspaceRole,
 } from "@/lib/services/admin-role-service";
+import { apiGet } from "@/lib/api-client";
+import type {
+  WorkspaceResource,
+  Permission,
+  PaginatedResponse,
+  WorkspaceRole,
+} from "@/types";
+
+/**
+ * Maps role's resource permission flags (canCreate, canRead, etc.) to permission IDs.
+ * Matches permission codes/names case-insensitively (e.g. "Create", "WorkspaceRoles.Create").
+ */
+function getAssignedPermissionIdsForResource(
+  rolePermission: AdminRolePermissionDto | undefined,
+  allPermissions: Permission[]
+): string[] {
+  if (!rolePermission) return [];
+  if (!allPermissions?.length) return [];
+
+  const actionToCodes: Record<string, string[]> = {
+    canCreate: ["create"],
+    canRead: ["read"],
+    canUpdate: ["update"],
+    canDelete: ["delete"],
+    canImport: ["import"],
+    canExport: ["export"],
+    canApprove: ["approve"],
+    canManage: ["manage"],
+    canReject: ["reject"],
+  };
+
+  const assignedIds: string[] = [];
+  for (const [flag, codes] of Object.entries(actionToCodes)) {
+    const isAssigned = rolePermission[flag as keyof AdminRolePermissionDto];
+    if (!isAssigned || typeof isAssigned !== "boolean") continue;
+
+    for (const perm of allPermissions) {
+      const codeLower = (perm.permissionCode || "").toLowerCase();
+      const nameLower = (perm.permissionName || "").toLowerCase();
+      const matches = codes.some(
+        (c) =>
+          codeLower === c ||
+          codeLower.endsWith(`.${c}`) ||
+          codeLower.endsWith(`_${c}`) ||
+          codeLower.includes(`.${c}.`) ||
+          codeLower.includes(`_${c}_`) ||
+          codeLower.startsWith(`${c}.`) ||
+          codeLower.startsWith(`${c}_`) ||
+          nameLower.includes(c)
+      );
+      if (matches && !assignedIds.includes(perm.permissionId)) {
+        assignedIds.push(perm.permissionId);
+      }
+    }
+  }
+  return assignedIds;
+}
 
 export default function AdminRolesPage() {
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
-  const [roles, setRoles] = useState<AdminRoleDto[]>([]);
+  const [roles, setRoles] = useState<AdminRoleListItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<AdminRoleDto | null>(null);
+  const [selectedListItem, setSelectedListItem] =
+    useState<AdminRoleListItemDto | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -69,7 +141,45 @@ export default function AdminRolesPage() {
     roleName: "",
     roleCode: "",
     roleDescription: "",
+    isAdmin: false,
+    createRoleWorkspaceId: "" as string,
   });
+
+  // Assign Permissions dialog (for domain roles only)
+  const [isAssignPermissionsOpen, setIsAssignPermissionsOpen] = useState(false);
+  const [assignPermissionsRole, setAssignPermissionsRole] =
+    useState<AdminRoleDto | null>(null);
+  const [assignResources, setAssignResources] = useState<WorkspaceResource[]>(
+    []
+  );
+  const [assignPermissionsList, setAssignPermissionsList] = useState<
+    Permission[]
+  >([]);
+  const [assignSelectedResourceId, setAssignSelectedResourceId] =
+    useState<string>("");
+  const [assignSelectedPermissionIds, setAssignSelectedPermissionIds] =
+    useState<string[]>([]);
+  const [isSubmittingAssignPermissions, setIsSubmittingAssignPermissions] =
+    useState(false);
+
+  // Unassign Permissions dialog
+  const [isUnassignPermissionsOpen, setIsUnassignPermissionsOpen] =
+    useState(false);
+  const [unassignPermissionsRole, setUnassignPermissionsRole] =
+    useState<AdminRoleDto | null>(null);
+  const [unassignResources, setUnassignResources] = useState<
+    WorkspaceResource[]
+  >([]);
+  const [unassignPermissionsList, setUnassignPermissionsList] = useState<
+    Permission[]
+  >([]);
+  const [unassignSelectedResourceId, setUnassignSelectedResourceId] =
+    useState<string>("");
+  const [unassignSelectedPermissionIds, setUnassignSelectedPermissionIds] =
+    useState<string[]>([]);
+  const [unassignEntireResource, setUnassignEntireResource] = useState(false);
+  const [isSubmittingUnassignPermissions, setIsSubmittingUnassignPermissions] =
+    useState(false);
 
   const loadRoles = async () => {
     if (!workspaceId) {
@@ -152,6 +262,10 @@ export default function AdminRolesPage() {
     fetchUserInfoAndWorkspace();
   }, [currentWorkspace, setCurrentWorkspace]);
 
+  const handleWorkspaceChange = (newWorkspaceId: string) => {
+    setWorkspaceId(newWorkspaceId);
+  };
+
   useEffect(() => {
     if (workspaceId) {
       loadRoles();
@@ -160,32 +274,31 @@ export default function AdminRolesPage() {
   }, [workspaceId]);
 
   const handleCreate = () => {
-    if (!workspaceId) {
-      toast.error("Please select a workspace");
-      return;
-    }
     setFormData({
       roleName: "",
       roleCode: "",
       roleDescription: "",
+      isAdmin: false,
+      createRoleWorkspaceId: workspaceId ?? "",
     });
     setIsCreateOpen(true);
   };
 
-  const handleEdit = async (role: AdminRoleDto) => {
+  const handleEdit = async (role: AdminRoleListItemDto) => {
     if (!workspaceId) {
       toast.error("Please select a workspace");
       return;
     }
     try {
-      const result = await getAdminRoleById(role.adminRoleId, workspaceId);
+      const result = await getAdminRoleById(role.workspaceRoleId, workspaceId);
       if (result.success && result.data) {
         setSelectedRole(result.data);
         setFormData({
           roleName: result.data.roleName || "",
           roleCode: result.data.roleCode || "",
-          roleDescription:
-            result.data.description || result.data.roleDescription || "",
+          roleDescription: result.data.roleDescription || "",
+          isAdmin: result.data.isAdmin ?? false,
+          createRoleWorkspaceId: result.data.workspaceId || workspaceId || "",
         });
         setIsEditOpen(true);
       }
@@ -194,41 +307,54 @@ export default function AdminRolesPage() {
     }
   };
 
-  const handleDelete = (role: AdminRoleDto) => {
-    setSelectedRole(role);
+  const handleDelete = (role: AdminRoleListItemDto) => {
+    setSelectedListItem(role);
     setIsDeleteOpen(true);
   };
 
   const handleSubmitCreate = async () => {
-    if (!workspaceId) {
-      toast.error("Please select a workspace");
-      return;
-    }
-
     if (!formData.roleName.trim()) {
       toast.error("Role name is required");
+      return;
+    }
+    const workspaceIdForCreate =
+      formData.createRoleWorkspaceId || workspaceId || undefined;
+    if (!workspaceIdForCreate) {
+      toast.error("Please select a workspace for this role");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const result = await createAdminRole(workspaceId, {
-        roleName: formData.roleName,
-        roleCode: formData.roleCode || null,
-        roleDescription: formData.roleDescription || null,
-      });
+      const result = await createAdminRole(
+        {
+          roleName: formData.roleName,
+          roleCode: formData.roleCode || null,
+          roleDescription: formData.roleDescription || null,
+          isAdmin: formData.isAdmin,
+        },
+        workspaceIdForCreate
+      );
 
       if (result.success) {
-        toast.success("Admin role created successfully");
+        toast.success(
+          formData.isAdmin
+            ? "Administrative role created"
+            : "Domain role created"
+        );
         setIsCreateOpen(false);
-        loadRoles();
+        if (workspaceIdForCreate !== workspaceId) {
+          setWorkspaceId(workspaceIdForCreate);
+        } else {
+          loadRoles();
+        }
       } else {
-        toast.error(result.message || "Failed to create admin role");
+        toast.error(result.message || "Failed to create role");
       }
     } catch (error) {
       console.error("Error creating role:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to create admin role"
+        error instanceof Error ? error.message : "Failed to create role"
       );
     } finally {
       setIsSubmitting(false);
@@ -246,7 +372,7 @@ export default function AdminRolesPage() {
     setIsSubmitting(true);
     try {
       const result = await updateAdminRole(
-        selectedRole.adminRoleId,
+        selectedRole.workspaceRoleId,
         workspaceId,
         {
           roleName: formData.roleName,
@@ -273,20 +399,317 @@ export default function AdminRolesPage() {
     }
   };
 
+  const handleAssignPermissionsClick = async (row: AdminRoleListItemDto) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
+    const loadingToastId = toast.loading(
+      "Loading resources and permissions..."
+    );
+    try {
+      const [result, roleWithPermsRes] = await Promise.all([
+        getAdminRoleById(row.workspaceRoleId, workspaceId),
+        apiGet<WorkspaceRole>(
+          `/api/workspaces/${workspaceId}/roles/${row.workspaceRoleId}`
+        ),
+      ]);
+      if (!result.success || !result.data) {
+        toast.dismiss(loadingToastId);
+        toast.error("Failed to load role details");
+        return;
+      }
+      const role = result.data;
+      const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
+      if (!workspaceIdForPermissions) {
+        toast.dismiss(loadingToastId);
+        toast.error("Please select a workspace to assign permissions");
+        return;
+      }
+      const rolePayload =
+        roleWithPermsRes.data ??
+        (roleWithPermsRes as { data?: { permissions?: unknown[] } })?.data;
+      const rawPermsArray = Array.isArray(
+        (rolePayload as { permissions?: unknown[] })?.permissions
+      )
+        ? (rolePayload as { permissions: unknown[] }).permissions
+        : (role.permissions ?? []);
+      const assignedPermissions: AdminRolePermissionDto[] = rawPermsArray.map(
+        (p: unknown) => {
+          const q = p as Record<string, unknown>;
+          return {
+            resourceId: String(q?.resourceId ?? ""),
+            resourceName: String(q?.resourceName ?? ""),
+            canCreate: !!q?.canCreate,
+            canRead: !!q?.canRead,
+            canUpdate: !!q?.canUpdate,
+            canDelete: !!q?.canDelete,
+            canImport: !!q?.canImport,
+            canExport: !!q?.canExport,
+            canApprove: !!q?.canApprove,
+            canManage: !!q?.canManage,
+            canReject: !!q?.canReject,
+          };
+        }
+      );
+
+      const [resourcesRes, permissionsRes] = await Promise.all([
+        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+          `/api/workspaces/${workspaceIdForPermissions}/resources`
+        ),
+        apiGet<Permission[] | PaginatedResponse<Permission>>(
+          `/api/permissions?pageSize=500`
+        ),
+      ]);
+      const resourcesData =
+        resourcesRes.success && resourcesRes.data
+          ? Array.isArray(resourcesRes.data)
+            ? resourcesRes.data
+            : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                .items || []
+          : [];
+      const permissionsData =
+        permissionsRes.success && permissionsRes.data
+          ? Array.isArray(permissionsRes.data)
+            ? permissionsRes.data
+            : (permissionsRes.data as PaginatedResponse<Permission>).items || []
+          : [];
+      setAssignPermissionsRole({
+        ...role,
+        workspaceId: workspaceIdForPermissions,
+        permissions: assignedPermissions,
+      });
+      setAssignResources(resourcesData);
+      setAssignPermissionsList(permissionsData);
+      if (assignedPermissions.length > 0 && resourcesData.length > 0) {
+        const firstPerm = assignedPermissions[0];
+        const firstResourceId = firstPerm.resourceId;
+        setAssignSelectedResourceId(firstResourceId);
+        setAssignSelectedPermissionIds(
+          getAssignedPermissionIdsForResource(firstPerm, permissionsData)
+        );
+      } else {
+        setAssignSelectedResourceId("");
+        setAssignSelectedPermissionIds([]);
+      }
+      toast.dismiss(loadingToastId);
+      setIsAssignPermissionsOpen(true);
+    } catch (error) {
+      toast.dismiss(loadingToastId);
+      console.error("Error loading role for assign permissions:", error);
+      toast.error("Failed to load role details");
+    }
+  };
+
+  const handleAssignPermissionsSubmit = async () => {
+    if (
+      !assignPermissionsRole ||
+      !assignSelectedResourceId ||
+      assignSelectedPermissionIds.length === 0
+    ) {
+      toast.error("Please select a resource and at least one permission");
+      return;
+    }
+    setIsSubmittingAssignPermissions(true);
+    try {
+      const result = await assignPermissionsToAdminRole(
+        assignPermissionsRole.workspaceRoleId,
+        assignPermissionsRole.workspaceId,
+        {
+          resourceId: assignSelectedResourceId,
+          permissionIds: assignSelectedPermissionIds,
+        }
+      );
+      if (result.success) {
+        toast.success("Permissions assigned successfully");
+        setIsAssignPermissionsOpen(false);
+        setAssignPermissionsRole(null);
+        setAssignSelectedResourceId("");
+        setAssignSelectedPermissionIds([]);
+        loadRoles();
+      } else {
+        toast.error(result.message || "Failed to assign permissions");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to assign permissions"
+      );
+    } finally {
+      setIsSubmittingAssignPermissions(false);
+    }
+  };
+
+  const handleUnassignPermissionsClick = async (row: AdminRoleListItemDto) => {
+    if (!workspaceId) {
+      toast.error("Please select a workspace");
+      return;
+    }
+    const loadingToastId = toast.loading(
+      "Loading resources and permissions..."
+    );
+    try {
+      const [result, roleWithPermsRes] = await Promise.all([
+        getAdminRoleById(row.workspaceRoleId, workspaceId),
+        apiGet<WorkspaceRole>(
+          `/api/workspaces/${workspaceId}/roles/${row.workspaceRoleId}`
+        ),
+      ]);
+      if (!result.success || !result.data) {
+        toast.dismiss(loadingToastId);
+        toast.error("Failed to load role details");
+        return;
+      }
+      const role = result.data;
+      const workspaceIdForPermissions = role.workspaceId || workspaceId || "";
+      if (!workspaceIdForPermissions) {
+        toast.dismiss(loadingToastId);
+        toast.error("Please select a workspace to unassign permissions");
+        return;
+      }
+      const rolePayload =
+        roleWithPermsRes.data ??
+        (roleWithPermsRes as { data?: { permissions?: unknown[] } })?.data;
+      const rawPermsArray = Array.isArray(
+        (rolePayload as { permissions?: unknown[] })?.permissions
+      )
+        ? (rolePayload as { permissions: unknown[] }).permissions
+        : (role.permissions ?? []);
+      const assignedPermissions: AdminRolePermissionDto[] = rawPermsArray.map(
+        (p: unknown) => {
+          const q = p as Record<string, unknown>;
+          return {
+            resourceId: String(q?.resourceId ?? ""),
+            resourceName: String(q?.resourceName ?? ""),
+            canCreate: !!q?.canCreate,
+            canRead: !!q?.canRead,
+            canUpdate: !!q?.canUpdate,
+            canDelete: !!q?.canDelete,
+            canImport: !!q?.canImport,
+            canExport: !!q?.canExport,
+            canApprove: !!q?.canApprove,
+            canManage: !!q?.canManage,
+            canReject: !!q?.canReject,
+          };
+        }
+      );
+
+      const [resourcesRes, permissionsRes] = await Promise.all([
+        apiGet<WorkspaceResource[] | PaginatedResponse<WorkspaceResource>>(
+          `/api/workspaces/${workspaceIdForPermissions}/resources`
+        ),
+        apiGet<Permission[] | PaginatedResponse<Permission>>(
+          `/api/permissions?pageSize=500`
+        ),
+      ]);
+      const resourcesData =
+        resourcesRes.success && resourcesRes.data
+          ? Array.isArray(resourcesRes.data)
+            ? resourcesRes.data
+            : (resourcesRes.data as PaginatedResponse<WorkspaceResource>)
+                .items || []
+          : [];
+      const permissionsData =
+        permissionsRes.success && permissionsRes.data
+          ? Array.isArray(permissionsRes.data)
+            ? permissionsRes.data
+            : (permissionsRes.data as PaginatedResponse<Permission>).items || []
+          : [];
+      setUnassignPermissionsRole({
+        ...role,
+        workspaceId: workspaceIdForPermissions,
+        permissions: assignedPermissions,
+      });
+      setUnassignResources(resourcesData);
+      setUnassignPermissionsList(permissionsData);
+      if (assignedPermissions.length > 0 && resourcesData.length > 0) {
+        const firstPerm = assignedPermissions[0];
+        setUnassignSelectedResourceId(firstPerm.resourceId);
+        setUnassignSelectedPermissionIds(
+          getAssignedPermissionIdsForResource(firstPerm, permissionsData)
+        );
+      } else {
+        setUnassignSelectedResourceId("");
+        setUnassignSelectedPermissionIds([]);
+      }
+      setUnassignEntireResource(false);
+      toast.dismiss(loadingToastId);
+      setIsUnassignPermissionsOpen(true);
+    } catch (error) {
+      toast.dismiss(loadingToastId);
+      console.error("Error loading role for unassign permissions:", error);
+      toast.error("Failed to load role details");
+    }
+  };
+
+  const handleUnassignPermissionsSubmit = async () => {
+    if (!unassignPermissionsRole || !unassignSelectedResourceId) {
+      toast.error("Please select a resource");
+      return;
+    }
+    if (!unassignEntireResource && unassignSelectedPermissionIds.length === 0) {
+      toast.error(
+        "Please select at least one permission to unassign, or check 'Unassign entire resource'"
+      );
+      return;
+    }
+    setIsSubmittingUnassignPermissions(true);
+    try {
+      const workspaceIdForApi =
+        unassignPermissionsRole.workspaceId || workspaceId || "";
+      const data = {
+        resourceId: unassignSelectedResourceId,
+        permissionIds: unassignEntireResource
+          ? []
+          : unassignSelectedPermissionIds,
+        unassignResource: unassignEntireResource,
+      };
+      const result = unassignPermissionsRole.isAdmin
+        ? await unassignPermissionsFromAdminRole(
+            unassignPermissionsRole.workspaceRoleId,
+            workspaceIdForApi,
+            data
+          )
+        : await unassignPermissionsFromWorkspaceRole(
+            workspaceIdForApi,
+            unassignPermissionsRole.workspaceRoleId,
+            data
+          );
+      if (result.success) {
+        toast.success("Permissions unassigned successfully");
+        setIsUnassignPermissionsOpen(false);
+        setUnassignPermissionsRole(null);
+        setUnassignSelectedResourceId("");
+        setUnassignSelectedPermissionIds([]);
+        setUnassignEntireResource(false);
+        loadRoles();
+      } else {
+        toast.error(result.message || "Failed to unassign permissions");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to unassign permissions"
+      );
+    } finally {
+      setIsSubmittingUnassignPermissions(false);
+    }
+  };
+
   const handleSubmitDelete = async () => {
-    if (!selectedRole || !workspaceId) return;
+    if (!selectedListItem || !workspaceId) return;
 
     setIsSubmitting(true);
     try {
       const result = await deleteAdminRole(
-        selectedRole.adminRoleId,
+        selectedListItem.workspaceRoleId,
         workspaceId
       );
 
       if (result.success) {
         toast.success("Admin role deleted successfully");
         setIsDeleteOpen(false);
-        setSelectedRole(null);
+        setSelectedListItem(null);
         loadRoles();
       } else {
         toast.error(result.message || "Failed to delete admin role");
@@ -301,7 +724,7 @@ export default function AdminRolesPage() {
     }
   };
 
-  const columns: DataTableColumn<AdminRoleDto>[] = [
+  const columns: DataTableColumn<AdminRoleListItemDto>[] = [
     {
       id: "roleName",
       header: "Role Name",
@@ -314,61 +737,22 @@ export default function AdminRolesPage() {
       ),
     },
     {
-      id: "roleCode",
-      header: "Role Code",
-      accessorKey: "roleCode",
+      id: "workspaceRoleId",
+      header: "Role ID",
+      accessorKey: "workspaceRoleId",
       cell: (row) => (
-        <span className="text-muted-foreground">{row.roleCode || "—"}</span>
-      ),
-    },
-    {
-      id: "description",
-      header: "Description",
-      accessorKey: "description",
-      cell: (row) => (
-        <span className="text-muted-foreground line-clamp-1">
-          {row.description || "—"}
+        <span className="text-muted-foreground text-xs font-mono">
+          {row.workspaceRoleId.substring(0, 8)}...
         </span>
       ),
     },
     {
-      id: "isSystemRole",
+      id: "type",
       header: "Type",
       cell: (row) => (
-        <Badge variant={row.isSystemRole ? "default" : "secondary"}>
-          {row.isSystemRole ? "System Role" : "Custom Role"}
+        <Badge variant={row.isAdmin ? "default" : "secondary"}>
+          {row.isAdmin ? "Administrative" : "Domain Role"}
         </Badge>
-      ),
-    },
-    {
-      id: "isActive",
-      header: "Status",
-      cell: (row) => (
-        <Badge
-          variant={row.isActive ? "success" : "secondary"}
-          className="flex items-center gap-1"
-        >
-          {row.isActive ? (
-            <>
-              <ShieldCheck className="h-3 w-3" />
-              Active
-            </>
-          ) : (
-            <>
-              <ShieldX className="h-3 w-3" />
-              Inactive
-            </>
-          )}
-        </Badge>
-      ),
-    },
-    {
-      id: "dateCreated",
-      header: "Created",
-      cell: (row) => (
-        <span className="text-sm text-muted-foreground">
-          {row.dateCreated ? formatDate(row.dateCreated) : "—"}
-        </span>
       ),
     },
     {
@@ -386,10 +770,17 @@ export default function AdminRolesPage() {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/admin/roles/permissions?workspaceId=${workspaceId ?? ""}&roleId=${row.workspaceRoleId}`}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                Manage Permissions
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => handleDelete(row)}
-              disabled={row.isSystemRole}
               className="text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -416,14 +807,15 @@ export default function AdminRolesPage() {
     return <LoadingPage message="Loading workspace information..." />;
   }
 
-  if (!workspaceId) {
+  const hasAnyWorkspace =
+    (userInfo?.adminDetails?.adminWorkspaces?.length ?? 0) > 0;
+  if (!workspaceId && !hasAnyWorkspace) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-lg font-medium">No workspace available</p>
           <p className="text-sm text-muted-foreground mt-2">
-            You need admin access to at least one workspace to manage admin
-            roles.
+            You need admin access to at least one workspace to manage roles.
           </p>
         </div>
       </div>
@@ -443,6 +835,32 @@ export default function AdminRolesPage() {
         }
       />
 
+      {/* Workspace selector - choose which workspace to manage roles for */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="space-y-2 min-w-[200px]">
+          <Label htmlFor="admin-roles-workspace">Workspace</Label>
+          <Select
+            value={workspaceId ?? ""}
+            onValueChange={handleWorkspaceChange}
+          >
+            <SelectTrigger id="admin-roles-workspace">
+              <SelectValue placeholder="Select workspace" />
+            </SelectTrigger>
+            <SelectContent>
+              {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                  {ws.workspaceName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground self-end pb-2">
+          Roles below are for the selected workspace. Create Role adds a role to
+          this workspace.
+        </p>
+      </div>
+
       <DataTable
         columns={columns}
         data={roles}
@@ -454,12 +872,59 @@ export default function AdminRolesPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create Admin Role</DialogTitle>
+            <DialogTitle>Create Role</DialogTitle>
             <DialogDescription>
-              Create a new admin role. System roles cannot be deleted.
+              Create an administrative role or a domain role tied to a
+              workspace. Domain roles can have resource-level permissions
+              assigned.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isAdmin"
+                checked={formData.isAdmin}
+                onCheckedChange={(checked) =>
+                  setFormData({
+                    ...formData,
+                    isAdmin: checked === true,
+                  })
+                }
+              />
+              <Label htmlFor="isAdmin" className="cursor-pointer">
+                Administrative role (no resource-level permissions)
+              </Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createRoleWorkspace">
+                Workspace <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.createRoleWorkspaceId || undefined}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    createRoleWorkspaceId: value,
+                  })
+                }
+              >
+                <SelectTrigger id="createRoleWorkspace">
+                  <SelectValue placeholder="Select workspace for this role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userInfo?.adminDetails?.adminWorkspaces?.map((ws) => (
+                    <SelectItem key={ws.workspaceId} value={ws.workspaceId}>
+                      {ws.workspaceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.isAdmin
+                  ? "Select the workspace this administrative role belongs to."
+                  : "Domain roles are tied to a workspace. You can assign permissions after creating the role."}
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="roleName">
                 Role Name <span className="text-destructive">*</span>
@@ -470,7 +935,7 @@ export default function AdminRolesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, roleName: e.target.value })
                 }
-                placeholder="e.g., Workspace Administrator"
+                placeholder="e.g., VESSEL_OPERATOR or Workspace Administrator"
               />
             </div>
             <div className="space-y-2">
@@ -481,7 +946,7 @@ export default function AdminRolesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, roleCode: e.target.value })
                 }
-                placeholder="e.g., WORKSPACE_ADMIN"
+                placeholder="e.g., VESSEL_OPERATOR"
               />
             </div>
             <div className="space-y-2">
@@ -507,6 +972,310 @@ export default function AdminRolesPage() {
             </Button>
             <Button onClick={handleSubmitCreate} disabled={isSubmitting}>
               {isSubmitting ? "Creating..." : "Create Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Permissions Dialog (domain roles only) */}
+      <Dialog
+        open={isAssignPermissionsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignPermissionsRole(null);
+            setAssignSelectedResourceId("");
+            setAssignSelectedPermissionIds([]);
+          }
+          setIsAssignPermissionsOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assign Permissions</DialogTitle>
+            <DialogDescription>
+              {assignPermissionsRole
+                ? `Choose a resource and select the permissions to grant ${assignPermissionsRole.roleName}.`
+                : "Assign permissions to this role."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Resource</Label>
+              <Select
+                value={assignSelectedResourceId}
+                onValueChange={(value) => {
+                  setAssignSelectedResourceId(value);
+                  const rolePerm = assignPermissionsRole?.permissions?.find(
+                    (p) => p.resourceId === value
+                  );
+                  const assignedIds = getAssignedPermissionIdsForResource(
+                    rolePerm,
+                    assignPermissionsList
+                  );
+                  setAssignSelectedPermissionIds(assignedIds);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a resource" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignResources.map((resource) => (
+                    <SelectItem
+                      key={resource.resourceId}
+                      value={resource.resourceId}
+                    >
+                      {resource.resourceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Permissions</Label>
+              {assignSelectedResourceId && (
+                <p className="text-xs text-muted-foreground">
+                  Already assigned permissions for this resource are
+                  pre-checked. You can add more or leave as is.
+                </p>
+              )}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
+                {assignPermissionsList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No permissions available
+                  </p>
+                ) : (
+                  assignPermissionsList.map((permission) => (
+                    <div
+                      key={permission.permissionId}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`assign-${permission.permissionId}`}
+                        checked={assignSelectedPermissionIds.includes(
+                          permission.permissionId
+                        )}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setAssignSelectedPermissionIds([
+                              ...assignSelectedPermissionIds,
+                              permission.permissionId,
+                            ]);
+                          } else {
+                            setAssignSelectedPermissionIds(
+                              assignSelectedPermissionIds.filter(
+                                (id) => id !== permission.permissionId
+                              )
+                            );
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`assign-${permission.permissionId}`}
+                        className="cursor-pointer flex-1"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {permission.permissionName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {permission.permissionCode}
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAssignPermissionsOpen(false);
+                setAssignPermissionsRole(null);
+                setAssignSelectedResourceId("");
+                setAssignSelectedPermissionIds([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignPermissionsSubmit}
+              disabled={
+                isSubmittingAssignPermissions ||
+                !assignSelectedResourceId ||
+                assignSelectedPermissionIds.length === 0
+              }
+            >
+              {isSubmittingAssignPermissions
+                ? "Assigning..."
+                : "Assign Permissions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unassign Permissions Dialog */}
+      <Dialog
+        open={isUnassignPermissionsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUnassignPermissionsRole(null);
+            setUnassignSelectedResourceId("");
+            setUnassignSelectedPermissionIds([]);
+            setUnassignEntireResource(false);
+          }
+          setIsUnassignPermissionsOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Unassign Permissions</DialogTitle>
+            <DialogDescription>
+              {unassignPermissionsRole
+                ? `Choose a resource and select the permissions to remove from ${unassignPermissionsRole.roleName}.`
+                : "Unassign permissions from this role."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Resource</Label>
+              <Select
+                value={unassignSelectedResourceId}
+                onValueChange={(value) => {
+                  setUnassignSelectedResourceId(value);
+                  const rolePerm = unassignPermissionsRole?.permissions?.find(
+                    (p) => p.resourceId === value
+                  );
+                  const assignedIds = getAssignedPermissionIdsForResource(
+                    rolePerm,
+                    unassignPermissionsList
+                  );
+                  setUnassignSelectedPermissionIds(assignedIds);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a resource" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unassignResources.map((resource) => (
+                    <SelectItem
+                      key={resource.resourceId}
+                      value={resource.resourceId}
+                    >
+                      {resource.resourceName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unassignSelectedResourceId && (
+                <p className="text-xs text-muted-foreground">
+                  Currently assigned permissions for this resource are
+                  pre-checked. Uncheck the ones you want to remove.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="unassign-entire-resource"
+                checked={unassignEntireResource}
+                onCheckedChange={(checked) => {
+                  setUnassignEntireResource(checked === true);
+                  if (checked) {
+                    setUnassignSelectedPermissionIds([]);
+                  }
+                }}
+              />
+              <Label
+                htmlFor="unassign-entire-resource"
+                className="cursor-pointer"
+              >
+                Unassign entire resource (removes resource and all its
+                permissions from this role)
+              </Label>
+            </div>
+            {!unassignEntireResource && (
+              <div className="space-y-2">
+                <Label>
+                  Permissions to remove (assigned permissions are pre-checked)
+                </Label>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-4">
+                  {unassignPermissionsList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No permissions available
+                    </p>
+                  ) : (
+                    unassignPermissionsList.map((permission) => (
+                      <div
+                        key={permission.permissionId}
+                        className="flex items-center space-x-2"
+                      >
+                        <Checkbox
+                          id={`unassign-${permission.permissionId}`}
+                          checked={unassignSelectedPermissionIds.includes(
+                            permission.permissionId
+                          )}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setUnassignSelectedPermissionIds([
+                                ...unassignSelectedPermissionIds,
+                                permission.permissionId,
+                              ]);
+                            } else {
+                              setUnassignSelectedPermissionIds(
+                                unassignSelectedPermissionIds.filter(
+                                  (id) => id !== permission.permissionId
+                                )
+                              );
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`unassign-${permission.permissionId}`}
+                          className="cursor-pointer flex-1"
+                        >
+                          <div>
+                            <div className="font-medium">
+                              {permission.permissionName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {permission.permissionCode}
+                            </div>
+                          </div>
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsUnassignPermissionsOpen(false);
+                setUnassignPermissionsRole(null);
+                setUnassignSelectedResourceId("");
+                setUnassignSelectedPermissionIds([]);
+                setUnassignEntireResource(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUnassignPermissionsSubmit}
+              disabled={
+                isSubmittingUnassignPermissions ||
+                !unassignSelectedResourceId ||
+                (!unassignEntireResource &&
+                  unassignSelectedPermissionIds.length === 0)
+              }
+            >
+              {isSubmittingUnassignPermissions
+                ? "Unassigning..."
+                : "Unassign Permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -588,8 +1357,8 @@ export default function AdminRolesPage() {
         onOpenChange={setIsDeleteOpen}
         title="Delete Admin Role"
         description={
-          selectedRole
-            ? `Are you sure you want to delete "${selectedRole.roleName}"? This action cannot be undone.`
+          selectedListItem
+            ? `Are you sure you want to delete "${selectedListItem.roleName}"? This action cannot be undone.`
             : ""
         }
         confirmLabel="Delete"

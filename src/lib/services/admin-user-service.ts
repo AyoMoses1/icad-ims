@@ -7,6 +7,7 @@ import {
   apiPost,
   apiPut,
   apiDelete,
+  apiClient,
   type ApiResponse,
 } from "@/lib/api-client";
 import type { User, PaginatedResponse } from "@/types";
@@ -142,23 +143,24 @@ export async function createAdminUser(
 /**
  * Create a new user with role (admin only)
  * Endpoint: POST /iam/api/v1/admin/users/with-role
- * Password is optional - auto-generated if not provided
+ * Password is auto-generated and sent via email
+ * Supports multiple workspaces and roles
  * Permission: users.create
  */
+export interface WorkspaceRoleAssignment {
+  workspaceId: string;
+  roleIds: string[];
+}
+
 export async function createAdminUserWithRole(userData: {
   email: string;
   firstName: string;
   lastName: string;
-  workspaceId: string;
-  roleCode: string;
-  password?: string; // Optional - auto-generated if not provided
-  roleId?: string; // Optional - role ID
   phoneNumber?: string;
-  wcoId?: string; // Required for WCO_EMPLOYEE role
+  workspaceRoles: WorkspaceRoleAssignment[]; // Array of workspace-role assignments
+  wcoId?: string; // Required for WCO_EMPLOYEE role in Waste Management workspace
 }): Promise<ApiResponse<User>> {
-  const response = await apiPost<User>(`${API_BASE}/with-role`, userData, {
-    headers: getWorkspaceHeaders(userData.workspaceId),
-  });
+  const response = await apiPost<User>(`${API_BASE}/with-role`, userData);
 
   if (response.success && response.data) {
     if ((response.data as any).data) {
@@ -305,4 +307,72 @@ export async function deactivateAdminUser(
   }
 
   return response as ApiResponse<User>;
+}
+
+/**
+ * Update admin user workspaces and roles
+ * Endpoint: PUT /iam/api/v1/admin/users/{userId}/workspaces
+ * Replaces all existing workspace-role assignments with the provided ones
+ */
+export async function updateAdminUserWorkspaces(
+  userId: string,
+  userData: {
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    workspaceRoles: WorkspaceRoleAssignment[]; // Array of workspace-role assignments
+    wcoId?: string; // Required for WCO_EMPLOYEE role
+  }
+): Promise<ApiResponse<User>> {
+  const response = await apiPut<User>(
+    `${API_BASE}/${userId}/workspaces`,
+    userData
+  );
+
+  if (response.success && response.data) {
+    if ((response.data as any).data) {
+      return {
+        success: true,
+        data: (response.data as any).data,
+      };
+    }
+    return {
+      success: true,
+      data: response.data as User,
+    };
+  }
+
+  return response as ApiResponse<User>;
+}
+
+/**
+ * Delete admin user workspaces/roles
+ * Endpoint: DELETE /iam/api/v1/admin/users/{userId}/workspaces
+ * Supports multiple deletion modes:
+ * - Delete entire workspaces (removeRolesOnly = false)
+ * - Delete specific roles from workspaces (removeRolesOnly = true)
+ */
+export interface DeleteAdminUserWorkspacesRequest {
+  workspaceIds?: string[] | null; // null = all workspaces
+  removeRolesOnly?: boolean; // false = remove entire workspaces, true = remove only specific roles
+  workspaceRoleAssignments?: WorkspaceRoleAssignment[]; // Required if removeRolesOnly = true
+}
+
+export async function deleteAdminUserWorkspaces(
+  userId: string,
+  request: DeleteAdminUserWorkspacesRequest
+): Promise<ApiResponse<boolean>> {
+  // Use apiClient directly since apiDelete doesn't support body
+  const response = await apiClient<boolean>(
+    `${API_BASE}/${userId}/workspaces`,
+    {
+      method: "DELETE",
+      body: JSON.stringify(request),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  return response;
 }

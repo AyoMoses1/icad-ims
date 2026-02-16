@@ -43,34 +43,40 @@ export default function SettingsPage() {
   // Fetch user info from API on mount (only once)
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchUserInfo = async () => {
       try {
-        console.log('Settings Page - Fetching user info...');
+        console.log("Settings Page - Fetching user info...");
         setIsLoadingUserInfo(true);
-        
+
         // Check if we have a token before making the request
         const { token } = useAuthStore.getState();
-        console.log('Settings Page - Token available:', !!token);
-        
+        console.log("Settings Page - Token available:", !!token);
+
         if (!token) {
-          console.warn('Settings Page - No token available, skipping userinfo fetch');
+          console.warn(
+            "Settings Page - No token available, skipping userinfo fetch"
+          );
           setIsLoadingUserInfo(false);
           return;
         }
-        
+
         const userInfo = await apiGetAuth<UserInfo>("/connect/userinfo");
-        console.log('Settings Page - User info received:', userInfo);
-        
+        console.log("Settings Page - User info received:", userInfo);
+
         // Only update if component is still mounted
         if (!isMounted) return;
-        
+
         // Map API response fields to our form fields
         // API uses given_name/family_name, but we also support firstName/lastName
         const firstName = userInfo.given_name || userInfo.firstName || "";
         const lastName = userInfo.family_name || userInfo.lastName || "";
-        const fullName = userInfo.name || userInfo.fullName || `${firstName} ${lastName}`.trim() || "";
-        
+        const fullName =
+          userInfo.name ||
+          userInfo.fullName ||
+          `${firstName} ${lastName}`.trim() ||
+          "";
+
         // Update profile state with fetched data
         setProfile({
           firstName: firstName,
@@ -95,24 +101,29 @@ export default function SettingsPage() {
             middleName: userInfo.middleName || currentUser?.middleName,
             dateOfBirth: userInfo.dateOfBirth || currentUser?.dateOfBirth,
             country: userInfo.country || currentUser?.country || "",
-            emailVerified: userInfo.emailVerified || userInfo.email_verified || false,
-            phoneVerified: userInfo.phoneVerified || userInfo.phone_verified || false,
+            emailVerified:
+              userInfo.emailVerified || userInfo.email_verified || false,
+            phoneVerified:
+              userInfo.phoneVerified || userInfo.phone_verified || false,
             twoFactorEnabled: userInfo.twoFactorEnabled || false,
           };
-          
+
           // Update fullName in the user object
           if (currentUser) {
             updatedUser.fullName = fullName || currentUser.fullName || "";
           }
-          
+
           updateUser(updatedUser);
-          console.log('Settings Page - User updated in store:', updatedUser);
+          console.log("Settings Page - User updated in store:", updatedUser);
         }
       } catch (error) {
         if (!isMounted) return;
         console.error("Settings Page - Failed to fetch user info:", error);
         toast.error("Failed to load profile", {
-          description: error instanceof Error ? error.message : "Please try refreshing the page",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Please try refreshing the page",
         });
       } finally {
         if (isMounted) {
@@ -122,7 +133,7 @@ export default function SettingsPage() {
     };
 
     fetchUserInfo();
-    
+
     // Cleanup function to prevent state updates if component unmounts
     return () => {
       isMounted = false;
@@ -282,7 +293,11 @@ export default function SettingsPage() {
                   <Input
                     id="dateOfBirth"
                     type="date"
-                    value={profile.dateOfBirth ? profile.dateOfBirth.split('T')[0] : ""}
+                    value={
+                      profile.dateOfBirth
+                        ? profile.dateOfBirth.split("T")[0]
+                        : ""
+                    }
                     onChange={(e) =>
                       setProfile({ ...profile, dateOfBirth: e.target.value })
                     }
@@ -477,22 +492,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

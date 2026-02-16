@@ -1,6 +1,6 @@
 /**
  * Admin Role Service - API integration for admin role management operations
- * Based on Admin_Role_and_User_Creation_Guide.md
+ * Based on AdminRoles.md documentation
  * All endpoints require workspaceId as a query parameter
  */
 
@@ -13,23 +13,26 @@ import {
 } from "@/lib/api-client";
 import type {
   AdminRoleDto,
+  AdminRoleListItemDto,
   CreateAdminRoleRequestDto,
   UpdateAdminRoleRequestDto,
+  AssignPermissionsToRoleRequestDto,
+  UnassignPermissionsRequestDto,
 } from "@/types";
 
 const API_BASE = "/api/admin-roles";
 
 /**
- * Get all admin roles for a workspace
+ * Get all admin roles for a workspace (list view - minimal data)
  * URL: GET /api/admin-roles?workspaceId={workspaceId}
- * Permission: AdminRoles.view
+ * Returns only workspaceRoleId and roleName for each role
  */
 export async function getAllAdminRoles(
   workspaceId: string
-): Promise<ApiResponse<AdminRoleDto[]>> {
+): Promise<ApiResponse<AdminRoleListItemDto[]>> {
   const params = new URLSearchParams();
   params.append("workspaceId", workspaceId);
-  return apiGet<AdminRoleDto[]>(`${API_BASE}?${params.toString()}`);
+  return apiGet<AdminRoleListItemDto[]>(`${API_BASE}?${params.toString()}`);
 }
 
 /**
@@ -47,17 +50,21 @@ export async function getAdminRoleById(
 }
 
 /**
- * Create a new admin role
+ * Create a new role (admin or domain).
  * URL: POST /api/admin-roles?workspaceId={workspaceId}
+ * - When data.isAdmin is false (domain role), workspaceId is required.
+ * - When data.isAdmin is true (administrative role), workspaceId is optional.
  * Permission: AdminRoles.create
  */
 export async function createAdminRole(
-  workspaceId: string,
-  data: CreateAdminRoleRequestDto
+  data: CreateAdminRoleRequestDto,
+  workspaceId?: string | null
 ): Promise<ApiResponse<AdminRoleDto>> {
-  const params = new URLSearchParams();
-  params.append("workspaceId", workspaceId);
-  return apiPost<AdminRoleDto>(`${API_BASE}?${params.toString()}`, data);
+  const url =
+    workspaceId != null && workspaceId !== ""
+      ? `${API_BASE}?${new URLSearchParams({ workspaceId }).toString()}`
+      : API_BASE;
+  return apiPost<AdminRoleDto>(url, data);
 }
 
 /**
@@ -92,17 +99,51 @@ export async function deleteAdminRole(
 /**
  * Assign permissions to an admin role
  * URL: POST /api/admin-roles/{id}/permissions?workspaceId={workspaceId}
- * Permission: AdminRoles.update
+ * Body: { resourceId: string, permissionIds: string[] }
  */
 export async function assignPermissionsToAdminRole(
   id: string,
   workspaceId: string,
-  permissions: Array<{ resourceId: string; permissionId: string }>
-): Promise<ApiResponse<AdminRoleDto>> {
+  data: AssignPermissionsToRoleRequestDto
+): Promise<ApiResponse<boolean>> {
   const params = new URLSearchParams();
   params.append("workspaceId", workspaceId);
-  return apiPost<AdminRoleDto>(
+  return apiPost<boolean>(
     `${API_BASE}/${id}/permissions?${params.toString()}`,
-    { permissions }
+    data
+  );
+}
+
+/**
+ * Unassign permissions from an admin role
+ * URL: DELETE /api/admin-roles/{id}/permissions?workspaceId={workspaceId}
+ * Body: { resourceId: string, permissionIds: string[], unassignResource?: boolean }
+ */
+export async function unassignPermissionsFromAdminRole(
+  id: string,
+  workspaceId: string,
+  data: UnassignPermissionsRequestDto
+): Promise<ApiResponse<boolean>> {
+  const params = new URLSearchParams();
+  params.append("workspaceId", workspaceId);
+  return apiDelete<boolean>(
+    `${API_BASE}/${id}/permissions?${params.toString()}`,
+    data
+  );
+}
+
+/**
+ * Unassign permissions from a workspace (domain) role
+ * URL: DELETE /api/workspaces/{workspaceId}/roles/{roleId}/permissions
+ * Body: { resourceId: string, permissionIds: string[], unassignResource?: boolean }
+ */
+export async function unassignPermissionsFromWorkspaceRole(
+  workspaceId: string,
+  roleId: string,
+  data: UnassignPermissionsRequestDto
+): Promise<ApiResponse<boolean>> {
+  return apiDelete<boolean>(
+    `/api/workspaces/${workspaceId}/roles/${roleId}/permissions`,
+    data
   );
 }

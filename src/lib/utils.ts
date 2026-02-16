@@ -202,3 +202,28 @@ export const safeLocalStorage = {
     }
   },
 };
+
+/**
+ * Keys used by the app for persisted state (Zustand persist, etc.)
+ * Clear these on logout or before login to avoid stale tenant/workspace cache.
+ */
+const APP_STORAGE_KEYS = [
+  "auth-storage",
+  "workspace-storage",
+  "switching-tenant",
+] as const;
+
+/**
+ * Clears all app-related localStorage to avoid caching stale auth/tenant/workspace state.
+ * Call on logout and at the start of login (before storing new session).
+ */
+export function clearAppStorage(): void {
+  if (!isBrowser) return;
+  try {
+    for (const key of APP_STORAGE_KEYS) {
+      safeLocalStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.warn("clearAppStorage failed:", error);
+  }
+}

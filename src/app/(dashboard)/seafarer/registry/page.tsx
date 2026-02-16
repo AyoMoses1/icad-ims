@@ -25,14 +25,3 @@ export default function SeafarerRegistryPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
