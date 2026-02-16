@@ -212,6 +212,7 @@ export function Sidebar() {
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
+  const [userManagementExpanded, setUserManagementExpanded] = useState(false);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -430,6 +431,13 @@ export function Sidebar() {
     );
   };
 
+  // Auto-expand User Management when on one of its child routes
+  const isUserManagementActive =
+    pathname?.startsWith("/admin/users") || pathname?.startsWith("/system-users");
+  useEffect(() => {
+    if (isUserManagementActive) setUserManagementExpanded(true);
+  }, [isUserManagementActive]);
+
   const handleLogout = async () => {
     try {
       console.log("Logout - Calling /connect/logout endpoint...");
@@ -609,10 +617,43 @@ export function Sidebar() {
           {/* Admin Section - Only show if user is admin */}
           {userInfo?.isAdmin && (
             <>
-              <NavLink
-                item={{ title: "User Management", href: "/admin/users" }}
-                icon={Shield}
-              />
+              {/* User Management - expandable submenu */}
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserManagementExpanded((prev) => !prev)
+                  }
+                  className={cn(
+                    "flex items-center justify-between w-full gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors",
+                    isUserManagementActive || userManagementExpanded
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground hover:bg-sidebar-muted"
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Users className="h-5 w-5 flex-shrink-0" />
+                    <span>User Management</span>
+                  </div>
+                  {userManagementExpanded ? (
+                    <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                  )}
+                </button>
+                {userManagementExpanded && (
+                  <div className="mt-1 space-y-1">
+                    <NavLink
+                      item={{ title: "Admin Users", href: "/admin/users" }}
+                      isChild
+                    />
+                    <NavLink
+                      item={{ title: "General Users", href: "/system-users" }}
+                      isChild
+                    />
+                  </div>
+                )}
+              </div>
               <NavLink
                 item={{ title: "Admin Roles", href: "/admin/roles" }}
                 icon={Shield}
