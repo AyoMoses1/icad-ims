@@ -328,6 +328,51 @@ export interface AuditLog {
   createdAt: string;
 }
 
+/** Audit log DTO from GET /api/audit-logs (MEMS.IAM API) */
+export interface AuditLogDto {
+  auditLogId: string;
+  timestamp: string;
+  auditType: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  tenantId: string | null;
+  workspaceId: string | null;
+  action: string;
+  resource: string | null;
+  details: string | null;
+  success: boolean | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestPath: string | null;
+  httpMethod: string | null;
+}
+
+export interface GetAuditLogsParams {
+  pageNumber?: number;
+  pageSize?: number;
+  userId?: string;
+  tenantId?: string;
+  workspaceId?: string;
+  auditType?: string;
+  entityType?: string;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PagedAuditLogsResult {
+  items: AuditLogDto[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 // ============================================================================
 // Auth Types
 // ============================================================================
