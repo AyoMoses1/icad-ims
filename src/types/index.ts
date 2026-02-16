@@ -499,6 +499,49 @@ export interface PaginationParams {
 }
 
 // ============================================================================
+// System Users API (non-admin users only)
+// ============================================================================
+
+/** UserStatus enum from API: 1=Active, 2=Inactive, 3=Suspended, 4=PendingVerification, 5=Locked */
+export enum SystemUserStatus {
+  Active = 1,
+  Inactive = 2,
+  Suspended = 3,
+  PendingVerification = 4,
+  Locked = 5,
+}
+
+export interface SystemUserDto {
+  id: string;
+  userName: string;
+  email: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth?: string | null;
+  country?: string | null;
+  status: number;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  twoFactorEnabled: boolean;
+  isActive: boolean;
+  isOnboardingComplete: boolean;
+  createdAt: string;
+  updatedAt: string;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  fullName?: string | null;
+  tenantId?: string | null;
+}
+
+export interface SystemUsersListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  query?: string;
+  isActive?: boolean;
+}
+
+// ============================================================================
 // UI State Types
 // ============================================================================
 

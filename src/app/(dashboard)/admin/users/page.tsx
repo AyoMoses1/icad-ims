@@ -634,7 +634,7 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="User Management"
+        title="Admin Users"
         description={`Manage users in ${workspaceName}`}
         actions={
           <div className="flex gap-2">
