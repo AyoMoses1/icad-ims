@@ -433,7 +433,7 @@ export function Sidebar() {
 
   // Auto-expand User Management when on one of its child routes
   const isUserManagementActive =
-    pathname.startsWith("/admin/users") || pathname.startsWith("/system-users");
+    pathname?.startsWith("/admin/users") || pathname?.startsWith("/system-users");
   useEffect(() => {
     if (isUserManagementActive) setUserManagementExpanded(true);
   }, [isUserManagementActive]);
