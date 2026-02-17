@@ -12,7 +12,7 @@ export default function DebtorsAnalysisPage() {
     <div className="space-y-6">
       <PageHeader
         title="Debtors Analysis"
-        description="View and analyze debtor information"
+        description="NIMASA financial debtors reporting and analysis"
       />
 
       <div className="rounded-lg border bg-card overflow-hidden">

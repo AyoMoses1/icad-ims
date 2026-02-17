@@ -645,11 +645,11 @@ export default function AdminUsersPage() {
     const workspaces =
       userInfo?.adminDetails?.adminWorkspaces || currentWorkspace
         ? [
-            {
-              workspaceId: currentWorkspace!.workspaceId,
-              workspaceName: currentWorkspace!.name,
-            },
-          ]
+          {
+            workspaceId: currentWorkspace!.workspaceId,
+            workspaceName: currentWorkspace!.name,
+          },
+        ]
         : [];
 
     for (const ws of workspaces) {
@@ -909,7 +909,16 @@ export default function AdminUsersPage() {
       header: "Status",
       cell: (user) => (
         <div className="flex items-center gap-2">
-          <Badge variant={statusColors[user.status]}>{user.status}</Badge>
+          <Badge variant={user.isActive ? "success" : "secondary"}>{user.isActive ? "Active" : "Inactive"}</Badge>
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: "Verified",
+      cell: (user) => (
+        <div className="flex items-center gap-2">
+          <Badge variant={user.emailVerified ? "success" : "secondary"}>{user.emailVerified ? "True" : "False"}</Badge>
           {user.emailVerified && (
             <span title="Email verified">
               <Mail className="h-4 w-4 text-green-600" />
@@ -949,8 +958,7 @@ export default function AdminUsersPage() {
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {user.status === UserStatus.INACTIVE ||
-            user.status === UserStatus.SUSPENDED ? (
+            {!user.isActive ? (
               <DropdownMenuItem onClick={() => handleActivate(user)}>
                 <UserCheck className="mr-2 h-4 w-4" />
                 Activate
@@ -1013,8 +1021,8 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="User Management"
-        description={`Manage users in ${currentWorkspaceName || "workspace"}`}
+        title="Admin Users"
+        description={`Manage users in ${workspaceName}`}
         actions={
           <div className="flex gap-2">
             <Button
@@ -1531,59 +1539,59 @@ export default function AdminUsersPage() {
                 return role?.roleName?.toLowerCase().includes("wco");
               });
             }) && (
-              <div className="space-y-2">
-                <Label htmlFor="withRole-wcoId">WCO Company *</Label>
-                {wcoCompaniesLoading ? (
-                  <p className="text-sm text-muted-foreground py-2">
-                    Loading WCO companies...
+                <div className="space-y-2">
+                  <Label htmlFor="withRole-wcoId">WCO Company *</Label>
+                  {wcoCompaniesLoading ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                      Loading WCO companies...
+                    </p>
+                  ) : wcoCompanies.length > 0 ? (
+                    <Select
+                      value={formDataWithRole.wcoId}
+                      onValueChange={(value) =>
+                        setFormDataWithRole({
+                          ...formDataWithRole,
+                          wcoId: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="withRole-wcoId">
+                        <SelectValue placeholder="Select WCO company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {wcoCompanies.map((wco) => (
+                          <SelectItem key={wco.id} value={wco.id}>
+                            {wco.name}
+                            {wco.code ? ` (${wco.code})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="withRole-wcoId"
+                      placeholder="WCO Company ID (UUID)"
+                      value={formDataWithRole.wcoId}
+                      onChange={(e) =>
+                        setFormDataWithRole({
+                          ...formDataWithRole,
+                          wcoId: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+                  {wcoCompaniesError && (
+                    <p className="text-sm text-amber-600">
+                      {wcoCompaniesError}. Enter the WCO company ID (UUID)
+                      manually in the field above.
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Required when assigning WCO_EMPLOYEE role. Select the Waste
+                    Collection Operator (company) this user belongs to.
                   </p>
-                ) : wcoCompanies.length > 0 ? (
-                  <Select
-                    value={formDataWithRole.wcoId}
-                    onValueChange={(value) =>
-                      setFormDataWithRole({
-                        ...formDataWithRole,
-                        wcoId: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger id="withRole-wcoId">
-                      <SelectValue placeholder="Select WCO company" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {wcoCompanies.map((wco) => (
-                        <SelectItem key={wco.id} value={wco.id}>
-                          {wco.name}
-                          {wco.code ? ` (${wco.code})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="withRole-wcoId"
-                    placeholder="WCO Company ID (UUID)"
-                    value={formDataWithRole.wcoId}
-                    onChange={(e) =>
-                      setFormDataWithRole({
-                        ...formDataWithRole,
-                        wcoId: e.target.value,
-                      })
-                    }
-                  />
-                )}
-                {wcoCompaniesError && (
-                  <p className="text-sm text-amber-600">
-                    {wcoCompaniesError}. Enter the WCO company ID (UUID)
-                    manually in the field above.
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Required when assigning WCO_EMPLOYEE role. Select the Waste
-                  Collection Operator (company) this user belongs to.
-                </p>
-              </div>
-            )}
+                </div>
+              )}
           </div>
           <DialogFooter>
             <Button

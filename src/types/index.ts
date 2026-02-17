@@ -58,6 +58,7 @@ export interface User {
 
 export interface UserWithFullName extends User {
   fullName: string;
+  isActive?: boolean;
 }
 
 export interface UsersListResponse {
@@ -328,6 +329,52 @@ export interface AuditLog {
   createdAt: string;
 }
 
+/** Audit log DTO from GET /api/audit-logs (MEMS.IAM API) */
+export interface AuditLogDto {
+  auditLogId: string;
+  timestamp: string;
+  auditType: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  tenantId: string | null;
+  workspaceId: string | null;
+  action: string;
+  resource: string | null;
+  details: string | null;
+  success: boolean | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestPath: string | null;
+  httpMethod: string | null;
+}
+
+export interface GetAuditLogsParams {
+  pageNumber?: number;
+  pageSize?: number;
+  query?: string;
+  userId?: string;
+  tenantId?: string;
+  workspaceId?: string;
+  auditType?: string;
+  entityType?: string;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PagedAuditLogsResult {
+  items: AuditLogDto[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 // ============================================================================
 // Auth Types
 // ============================================================================
@@ -511,6 +558,49 @@ export interface PaginationParams {
   search?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+}
+
+// ============================================================================
+// System Users API (non-admin users only)
+// ============================================================================
+
+/** UserStatus enum from API: 1=Active, 2=Inactive, 3=Suspended, 4=PendingVerification, 5=Locked */
+export enum SystemUserStatus {
+  Active = 1,
+  Inactive = 2,
+  Suspended = 3,
+  PendingVerification = 4,
+  Locked = 5,
+}
+
+export interface SystemUserDto {
+  id: string;
+  userName: string;
+  email: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth?: string | null;
+  country?: string | null;
+  status: number;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  twoFactorEnabled: boolean;
+  isActive: boolean;
+  isOnboardingComplete: boolean;
+  createdAt: string;
+  updatedAt: string;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  fullName?: string | null;
+  tenantId?: string | null;
+}
+
+export interface SystemUsersListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  query?: string;
+  isActive?: boolean;
 }
 
 // ============================================================================

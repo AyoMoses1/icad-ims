@@ -10,4 +10,5 @@ export * from "./workspace-service";
 export * from "./admin-user-service";
 export * from "./admin-role-service";
 export * from "./workspace-resource-service";
-export * from "./wco-service";
+export * from "./system-user-service";
+export * from "./audit-log-service";

@@ -56,6 +56,7 @@ import {
   Shield,
   FolderTree,
   Ship,
+  History,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -231,6 +232,7 @@ export function Sidebar() {
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
+  const [userManagementExpanded, setUserManagementExpanded] = useState(false);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
   /** Permission-based menu for admin users (GET /api/menu?workspaceId=IMS_WORKSPACE_ID) */
   const [adminWorkspaceMenus, setAdminWorkspaceMenus] = useState<
@@ -480,6 +482,13 @@ export function Sidebar() {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
+
+  // Auto-expand User Management when on one of its child routes
+  const isUserManagementActive =
+    pathname?.startsWith("/admin/users") || pathname?.startsWith("/system-users");
+  useEffect(() => {
+    if (isUserManagementActive) setUserManagementExpanded(true);
+  }, [isUserManagementActive]);
 
   const handleLogout = async () => {
     try {

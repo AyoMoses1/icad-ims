@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { History, Filter, Download } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Filter, Download, X, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -14,60 +16,194 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, DataTable, DataTableColumn } from "@/components/shared";
-import { AuditLog } from "@/types";
+import { AuditLogDto } from "@/types";
 import { formatDateTime } from "@/lib/utils";
-import { mockDataStore } from "@/lib/mock-data";
+import { getAuditLogs } from "@/lib/services/audit-log-service";
 
 const actionColors: Record<
   string,
   "default" | "success" | "warning" | "destructive" | "info"
 > = {
-  CREATE: "success",
-  UPDATE: "warning",
-  DELETE: "destructive",
-  ASSIGN: "info",
-  LOGIN: "default",
+  Create: "success",
+  Update: "warning",
+  Delete: "destructive",
+  Login: "info",
+  Logout: "default",
+  Assign: "info",
 };
 
+const AUDIT_TYPES = [
+  { value: "", label: "All types" },
+  { value: "SecurityEvent", label: "Security Event" },
+  { value: "EntityChange", label: "Entity Change" },
+];
+
+const ENTITY_TYPES = [
+  { value: "", label: "All entities" },
+  { value: "User", label: "User" },
+  { value: "Role", label: "Role" },
+  { value: "Permission", label: "Permission" },
+  { value: "Workspace", label: "Workspace" },
+];
+
+const ACTION_TYPES = [
+  { value: "", label: "All actions" },
+  { value: "Login", label: "Login" },
+  { value: "Logout", label: "Logout" },
+  { value: "Create", label: "Create" },
+  { value: "Update", label: "Update" },
+  { value: "Delete", label: "Delete" },
+  { value: "Assign", label: "Assign" },
+];
+
+const toISOOptional = (localDatetime: string) =>
+  localDatetime ? new Date(localDatetime).toISOString() : undefined;
+
 export default function AuditPage() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [logs, setLogs] = useState<AuditLogDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filterAction, setFilterAction] = useState<string>("all");
-  const [filterEntity, setFilterEntity] = useState<string>("all");
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [queryForApi, setQueryForApi] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [filterAuditType, setFilterAuditType] = useState("");
+  const [filterEntityType, setFilterEntityType] = useState("");
+  const [filterAction, setFilterAction] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+
+  // Single endpoint: Query (search) + pageNumber (pagination) + filters. Result populates the table.
+  const loadLogs = useCallback(
+    async (query: string, pageNum: number) => {
+      setIsLoading(true);
+      try {
+        const params: Parameters<typeof getAuditLogs>[0] = {
+          pageNumber: pageNum,
+          pageSize,
+        };
+        if ((query ?? "").trim()) params.query = query.trim();
+        if (filterAuditType) params.auditType = filterAuditType;
+        if (filterEntityType) params.entityType = filterEntityType;
+        if (filterAction) params.action = filterAction;
+        const startIso = toISOOptional(filterStartDate);
+        const endIso = toISOOptional(filterEndDate);
+        if (startIso) params.startDate = startIso;
+        if (endIso) params.endDate = endIso;
+
+        const result = await getAuditLogs(params);
+
+        if (result.success && result.data) {
+          setLogs(result.data.items);
+          setTotalCount(result.data.totalCount);
+        } else {
+          setLogs([]);
+          setTotalCount(0);
+          const msg = result.message || result.error?.message;
+          if (msg) toast.error(msg);
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to load audit logs"
+        );
+        setLogs([]);
+        setTotalCount(0);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      pageSize,
+      filterAuditType,
+      filterEntityType,
+      filterAction,
+      filterStartDate,
+      filterEndDate,
+    ]
+  );
 
   useEffect(() => {
-    loadAuditLogs();
+    loadLogs(queryForApi, pageNumber);
+  }, [queryForApi, pageNumber, loadLogs]);
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setPageNumber(1);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const trimmed = (query ?? "").trim();
+    if (trimmed === "") {
+      setQueryForApi("");
+      return;
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      setQueryForApi(trimmed);
+      setPageNumber(1);
+      searchDebounceRef.current = null;
+    }, 400);
   }, []);
 
-  const loadAuditLogs = async () => {
-    setIsLoading(true);
-    try {
-      // Simulate API call with mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setLogs(mockDataStore.auditLogs);
-    } catch (error) {
-      toast.error("Failed to load audit logs");
-    } finally {
-      setIsLoading(false);
+  const handleSearchSubmit = useCallback((query: string) => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
     }
+    setSearchQuery(query);
+    setQueryForApi((query ?? "").trim());
+    setPageNumber(1);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    },
+    []
+  );
+
+  const hasActiveFilters =
+    filterAuditType ||
+    filterEntityType ||
+    filterAction ||
+    filterStartDate ||
+    filterEndDate;
+
+  const clearFilters = () => {
+    setFilterAuditType("");
+    setFilterEntityType("");
+    setFilterAction("");
+    setFilterStartDate("");
+    setFilterEndDate("");
+    setSearchQuery("");
+    setQueryForApi("");
+    setPageNumber(1);
   };
 
-  const filteredLogs = logs.filter((log) => {
-    if (filterAction && filterAction !== "all" && log.action !== filterAction)
-      return false;
-    if (
-      filterEntity &&
-      filterEntity !== "all" &&
-      log.entityType !== filterEntity
-    )
-      return false;
-    return true;
-  });
-
-  const entityTypes = [...new Set(logs.map((log) => log.entityType))];
-  const actionTypes = [...new Set(logs.map((log) => log.action))];
-
-  const columns: DataTableColumn<AuditLog>[] = [
+  const columns: DataTableColumn<AuditLogDto>[] = [
+    {
+      id: "timestamp",
+      header: "Time",
+      cell: (log) => (
+        <span className="text-sm whitespace-nowrap">
+          {log.timestamp ? formatDateTime(log.timestamp) : "—"}
+        </span>
+      ),
+    },
+    {
+      id: "user",
+      header: "User",
+      cell: (log) => (
+        <div>
+          <p className="font-medium text-sm">
+            {log.userName || log.userEmail || "—"}
+          </p>
+          {log.userEmail && log.userName !== log.userEmail && (
+            <p className="text-xs text-muted-foreground">{log.userEmail}</p>
+          )}
+        </div>
+      ),
+    },
     {
       id: "action",
       header: "Action",
@@ -78,42 +214,71 @@ export default function AuditPage() {
       ),
     },
     {
+      id: "auditType",
+      header: "Type",
+      cell: (log) => (
+        <span className="text-sm">
+          {log.auditType ?? "—"}
+        </span>
+      ),
+    },
+    {
       id: "entity",
       header: "Entity",
       cell: (log) => (
         <div>
-          <p className="font-medium">{log.entityType}</p>
-          <p className="text-xs text-muted-foreground font-mono">
-            {log.entityId}
-          </p>
+          {log.entityType ? (
+            <>
+              <p className="font-medium text-sm">{log.entityType}</p>
+              {log.entityId && (
+                <p className="text-xs text-muted-foreground font-mono truncate max-w-[120px]">
+                  {log.entityId}
+                </p>
+              )}
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </div>
       ),
     },
     {
-      id: "changes",
-      header: "Changes",
+      id: "details",
+      header: "Details",
       cell: (log) => (
-        <div className="max-w-[300px]">
-          {log.changes ? (
-            <code className="text-xs bg-muted p-1 rounded block truncate">
-              {JSON.stringify(log.changes)}
-            </code>
+        <div className="max-w-[240px]">
+          {log.details ? (
+            <p className="text-xs truncate" title={log.details}>
+              {log.details}
+            </p>
+          ) : log.resource ? (
+            <span className="text-xs text-muted-foreground">{log.resource}</span>
           ) : (
-            <span className="text-muted-foreground">-</span>
+            <span className="text-muted-foreground">—</span>
           )}
         </div>
       ),
     },
     {
       id: "ipAddress",
-      header: "IP Address",
-      cell: (log) => <span className="font-mono text-sm">{log.ipAddress}</span>,
+      header: "IP",
+      cell: (log) => (
+        <span className="font-mono text-xs">
+          {log.ipAddress ?? "—"}
+        </span>
+      ),
     },
     {
-      id: "timestamp",
-      header: "Timestamp",
-      cell: (log) => formatDateTime(log.createdAt),
-      sortable: true,
+      id: "success",
+      header: "Status",
+      cell: (log) =>
+        log.success === true ? (
+          <Badge variant="success">Success</Badge>
+        ) : log.success === false ? (
+          <Badge variant="destructive">Failed</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
   ];
 
@@ -121,68 +286,150 @@ export default function AuditPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit Logs"
-        description="Track all actions and changes in the system"
+        description="Track all actions and changes in the system. Results are ordered by most recent first."
         actions={
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showFilters ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {showFilters ? <X className="ml-2 h-4 w-4" /> : null}
+            </Button>
+            <Button variant="outline" size="sm" disabled>
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </div>
         }
       />
 
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Filters:</span>
-        </div>
-        <Select value={filterAction} onValueChange={setFilterAction}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All actions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Actions</SelectItem>
-            {actionTypes.map((action) => (
-              <SelectItem key={action} value={action}>
-                {action}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterEntity} onValueChange={setFilterEntity}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All entities" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Entities</SelectItem>
-            {entityTypes.map((entity) => (
-              <SelectItem key={entity} value={entity}>
-                {entity}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {(filterAction || filterEntity) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setFilterAction("");
-              setFilterEntity("");
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search audit logs..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearchSubmit(searchQuery);
             }}
-          >
-            Clear filters
-          </Button>
-        )}
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      <DataTable
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-muted/30 p-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Audit type</Label>
+            <Select
+              value={filterAuditType || "all"}
+              onValueChange={(v) => {
+                setFilterAuditType(v === "all" ? "" : v);
+                setPageNumber(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUDIT_TYPES.map((opt) => (
+                  <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Entity type</Label>
+            <Select
+              value={filterEntityType || "all"}
+              onValueChange={(v) => {
+                setFilterEntityType(v === "all" ? "" : v);
+                setPageNumber(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTITY_TYPES.map((opt) => (
+                  <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Action</Label>
+            <Select
+              value={filterAction || "all"}
+              onValueChange={(v) => {
+                setFilterAction(v === "all" ? "" : v);
+                setPageNumber(1);
+              }}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ACTION_TYPES.map((opt) => (
+                  <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">From date</Label>
+            <Input
+              type="datetime-local"
+              className="w-[180px]"
+              value={filterStartDate}
+              onChange={(e) => {
+                setFilterStartDate(e.target.value);
+                setPageNumber(1);
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">To date</Label>
+            <Input
+              type="datetime-local"
+              className="w-[180px]"
+              value={filterEndDate}
+              onChange={(e) => {
+                setFilterEndDate(e.target.value);
+                setPageNumber(1);
+              }}
+            />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
+
+      <DataTable<AuditLogDto>
         columns={columns}
-        data={filteredLogs}
+        data={logs}
+        searchable={false}
         isLoading={isLoading}
         emptyMessage="No audit logs found"
-        emptyDescription="System activity will appear here once actions are performed."
-        searchPlaceholder="Search logs..."
+        emptyDescription="System activity will appear here once actions are performed. Try adjusting filters."
         getRowId={(row) => row.auditLogId}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        currentPage={pageNumber}
+        onPageChange={setPageNumber}
       />
     </div>
   );
