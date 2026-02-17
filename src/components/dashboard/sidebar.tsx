@@ -157,6 +157,25 @@ const getIconForResource = (resourceId: string) => getIconForKey(resourceId);
 const getIconForWorkspace = (workspaceKey: string) =>
   getIconForKey(workspaceKey);
 
+/** Super admin: isAdmin + isInOwnTenant + isSystemAdmin — show full management menu */
+function isSuperAdmin(userInfo: UserInfo | null): boolean {
+  return (
+    userInfo?.isAdmin === true &&
+    userInfo?.isInOwnTenant === true &&
+    userInfo?.adminDetails?.isSystemAdmin === true
+  );
+}
+
+/** Full management menu for super admins (all items, not filtered by API permissions) */
+const SUPER_ADMIN_MENU_ITEMS: { title: string; href: string; icon: typeof Ship }[] = [
+  { title: "Maritime Intelligence", href: "/maritime-intelligence", icon: Ship },
+  { title: "Debtors Analysis", href: "/debtors-analysis", icon: BarChart },
+  { title: "User Management", href: "/admin/users", icon: Shield },
+  { title: "Admin Roles", href: "/admin/roles", icon: Shield },
+  { title: "Workspace Resources", href: "/admin/resources", icon: FolderTree },
+  { title: "Workspace Management", href: "/admin/workspaces", icon: Building },
+];
+
 // Helper function to remove /api prefix from URLs for navigation
 // Adds workspaceId and token to external URLs
 const normalizeResourceUrl = (
@@ -213,7 +232,16 @@ export function Sidebar() {
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
+  /** Permission-based menu for admin users (GET /api/menu?workspaceId=IMS_WORKSPACE_ID) */
+  const [adminWorkspaceMenus, setAdminWorkspaceMenus] = useState<
+    WorkspaceMenu[]
+  >([]);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+
+  const imsWorkspaceId =
+    typeof process.env.NEXT_PUBLIC_IMS_WORKSPACE_ID === "string"
+      ? process.env.NEXT_PUBLIC_IMS_WORKSPACE_ID.trim()
+      : "";
 
   // Load menu immediately after login - menu endpoint contains workspaces user has access to
   // Also initialize workspaces from token as per integration guide
@@ -284,8 +312,31 @@ export function Sidebar() {
       // Fetch user info and load menu
       fetchUserInfo();
       loadMenu();
+
+      // For admin users: fetch IMS workspace menu (permission-based) when workspace ID is configured
+      if (imsWorkspaceId) {
+        const loadAdminMenu = async () => {
+          try {
+            const menuResult = await apiGet<
+              WorkspaceMenu[] | PaginatedResponse<WorkspaceMenu>
+            >(`/api/menu?workspaceId=${imsWorkspaceId}`);
+            if (menuResult.success && menuResult.data) {
+              const menuData = Array.isArray(menuResult.data)
+                ? menuResult.data
+                : menuResult.data.items || [];
+              setAdminWorkspaceMenus(menuData);
+            } else {
+              setAdminWorkspaceMenus([]);
+            }
+          } catch (err) {
+            console.error("Failed to load admin menu", err);
+            setAdminWorkspaceMenus([]);
+          }
+        };
+        loadAdminMenu();
+      }
     }
-  }, [user]);
+  }, [user, imsWorkspaceId]);
 
   const loadMenu = async () => {
     try {
@@ -586,53 +637,114 @@ export function Sidebar() {
               icon={Mail}
             />
           )}
-          {/* Maritime Intelligence - Only show for super admin */}
-          {userInfo?.isAdmin && (
-            <NavLink
-              item={{
-                title: "Maritime Intelligence",
-                href: "/maritime-intelligence",
-              }}
-              icon={Ship}
-            />
-          )}
-          {/* Debtors Analysis - Only show for super admin */}
-          {userInfo?.isAdmin && (
-            <NavLink
-              item={{
-                title: "Debtors Analysis",
-                href: "/debtors-analysis",
-              }}
-              icon={BarChart}
-            />
-          )}
-          {/* Admin Section - Only show if user is admin */}
-          {userInfo?.isAdmin && (
-            <>
+          {/* Super admin: show all management menu items (no API filter) */}
+          {isSuperAdmin(userInfo) &&
+            SUPER_ADMIN_MENU_ITEMS.map((item) => (
               <NavLink
-                item={{ title: "User Management", href: "/admin/users" }}
-                icon={Shield}
+                key={item.href}
+                item={{ title: item.title, href: item.href }}
+                icon={item.icon}
               />
-              <NavLink
-                item={{ title: "Admin Roles", href: "/admin/roles" }}
-                icon={Shield}
-              />
-              <NavLink
-                item={{
-                  title: "Workspace Resources",
-                  href: "/admin/resources",
-                }}
-                icon={FolderTree}
-              />
-              <NavLink
-                item={{
-                  title: "Workspace Management",
-                  href: "/admin/workspaces",
-                }}
-                icon={Building}
-              />
-            </>
-          )}
+            ))}
+          {/* Admin (non–super admin): permission-based menu from GET /api/menu?workspaceId=IMS_WORKSPACE_ID */}
+          {userInfo?.isAdmin &&
+            !isSuperAdmin(userInfo) &&
+            adminWorkspaceMenus.length > 0 &&
+            adminWorkspaceMenus.flatMap((workspaceMenu) =>
+              (workspaceMenu.resources || []).map((resource) => {
+                const hasChildren =
+                  resource.children && resource.children.length > 0;
+                const isResourceExpanded = expandedItems.includes(
+                  resource.resourceId
+                );
+
+                return (
+                  <div key={resource.resourceId}>
+                    {hasChildren ? (
+                      <>
+                        <button
+                          onClick={() =>
+                            toggleExpand(resource.resourceId)
+                          }
+                          className={cn(
+                            "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
+                            isResourceExpanded ||
+                              isChildActive(
+                                resource.children.map((c) => ({
+                                  title: c.name,
+                                  href: c.url || "#",
+                                }))
+                              )
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-foreground hover:bg-sidebar-muted"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const ResourceIcon = getIconForResource(
+                                resource.resourceId
+                              );
+                              return (
+                                <ResourceIcon className="h-4 w-4 flex-shrink-0" />
+                              );
+                            })()}
+                            <span className="text-left">{resource.name}</span>
+                          </div>
+                          {isResourceExpanded ? (
+                            <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+                          )}
+                        </button>
+                        {isResourceExpanded && (
+                          <div className="mt-1 space-y-1 ml-2">
+                            {resource.children.map((child) => {
+                              const ChildIcon = getIconForResource(
+                                child.resourceId
+                              );
+                              return (
+                                <NavLink
+                                  key={child.resourceId}
+                                  item={{
+                                    title: child.name,
+                                    href: normalizeResourceUrl(
+                                      child.url,
+                                      workspaceMenu.workspaceName,
+                                      workspaceMenu.workspaceId
+                                    ),
+                                  }}
+                                  isChild
+                                  icon={ChildIcon}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      (() => {
+                        const ResourceIcon = getIconForResource(
+                          resource.resourceId
+                        );
+                        return (
+                          <NavLink
+                            item={{
+                              title: resource.name,
+                              href: normalizeResourceUrl(
+                                resource.url,
+                                workspaceMenu.workspaceName,
+                                workspaceMenu.workspaceId
+                              ),
+                            }}
+                            icon={ResourceIcon}
+                          />
+                        );
+                      })()
+                    )}
+                  </div>
+                );
+              })
+            )}
         </div>
 
         {/* Workspace Label - Only show for non-admin users */}
