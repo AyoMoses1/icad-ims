@@ -167,15 +167,34 @@ function isSuperAdmin(userInfo: UserInfo | null): boolean {
   );
 }
 
+/** Super admin menu item: either a link or a parent with children */
+type SuperAdminMenuItem =
+  | { title: string; href: string; icon: typeof Ship; children?: undefined }
+  | {
+      title: string;
+      href?: string;
+      icon: typeof Ship;
+      children: { title: string; href: string }[];
+    };
+
 /** Full management menu for super admins (all items, not filtered by API permissions) */
-const SUPER_ADMIN_MENU_ITEMS: { title: string; href: string; icon: typeof Ship }[] = [
+const SUPER_ADMIN_MENU_ITEMS: SuperAdminMenuItem[] = [
   { title: "Maritime Intelligence", href: "/maritime-intelligence", icon: Ship },
   { title: "Debtors Analysis", href: "/debtors-analysis", icon: BarChart },
-  { title: "User Management", href: "/admin/users", icon: Shield },
+  {
+    title: "User Management",
+    icon: Shield,
+    children: [
+      { title: "General Users", href: "/users" },
+      { title: "Admin Users", href: "/admin/users" },
+    ],
+  },
   { title: "Admin Roles", href: "/admin/roles", icon: Shield },
   { title: "Workspace Resources", href: "/admin/resources", icon: FolderTree },
   { title: "Workspace Management", href: "/admin/workspaces", icon: Building },
 ];
+
+const SUPER_ADMIN_USER_MANAGEMENT_KEY = "super-admin-user-management";
 
 // Helper function to remove /api prefix from URLs for navigation
 // Adds workspaceId and token to external URLs
@@ -232,7 +251,6 @@ export function Sidebar() {
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
-  const [userManagementExpanded, setUserManagementExpanded] = useState(false);
   const [workspaceMenus, setWorkspaceMenus] = useState<WorkspaceMenu[]>([]);
   /** Permission-based menu for admin users (GET /api/menu?workspaceId=IMS_WORKSPACE_ID) */
   const [adminWorkspaceMenus, setAdminWorkspaceMenus] = useState<
@@ -483,13 +501,6 @@ export function Sidebar() {
     );
   };
 
-  // Auto-expand User Management when on one of its child routes
-  const isUserManagementActive =
-    pathname?.startsWith("/admin/users") || pathname?.startsWith("/system-users");
-  useEffect(() => {
-    if (isUserManagementActive) setUserManagementExpanded(true);
-  }, [isUserManagementActive]);
-
   const handleLogout = async () => {
     try {
       console.log("Logout - Calling /connect/logout endpoint...");
@@ -648,13 +659,71 @@ export function Sidebar() {
           )}
           {/* Super admin: show all management menu items (no API filter) */}
           {isSuperAdmin(userInfo) &&
-            SUPER_ADMIN_MENU_ITEMS.map((item) => (
-              <NavLink
-                key={item.href}
-                item={{ title: item.title, href: item.href }}
-                icon={item.icon}
-              />
-            ))}
+            SUPER_ADMIN_MENU_ITEMS.map((item) => {
+              if (item.children && item.children.length > 0) {
+                const currentPath = pathname ?? "";
+                const isExpanded =
+                  expandedItems.includes(SUPER_ADMIN_USER_MANAGEMENT_KEY) ||
+                  currentPath === "/users" ||
+                  currentPath.startsWith("/admin/users");
+                const Icon = item.icon;
+                return (
+                  <div key={SUPER_ADMIN_USER_MANAGEMENT_KEY}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedItems((prev) =>
+                          prev.includes(SUPER_ADMIN_USER_MANAGEMENT_KEY)
+                            ? prev.filter((k) => k !== SUPER_ADMIN_USER_MANAGEMENT_KEY)
+                            : [...prev, SUPER_ADMIN_USER_MANAGEMENT_KEY]
+                        )
+                      }
+                      className={cn(
+                        "flex items-center justify-between w-full px-3 py-2.5 text-sm rounded-lg transition-colors",
+                        isExpanded ||
+                          isChildActive(
+                            item.children.map((c) => ({
+                              title: c.title,
+                              href: c.href,
+                            }))
+                          )
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "text-sidebar-foreground hover:bg-sidebar-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span className="text-left">{item.title}</span>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-1 space-y-1 ml-2">
+                        {item.children.map((child) => (
+                          <NavLink
+                            key={child.href}
+                            item={{ title: child.title, href: child.href }}
+                            isChild
+                            icon={Users}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <NavLink
+                  key={item.href}
+                  item={{ title: item.title, href: item.href! }}
+                  icon={item.icon}
+                />
+              );
+            })}
           {/* Admin (non–super admin): permission-based menu from GET /api/menu?workspaceId=IMS_WORKSPACE_ID */}
           {userInfo?.isAdmin &&
             !isSuperAdmin(userInfo) &&
