@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Filter, Download, X } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Filter, Download, X, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,9 @@ const ACTION_TYPES = [
   { value: "Assign", label: "Assign" },
 ];
 
+const toISOOptional = (localDatetime: string) =>
+  localDatetime ? new Date(localDatetime).toISOString() : undefined;
+
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLogDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +66,9 @@ export default function AuditPage() {
   const [pageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [queryForApi, setQueryForApi] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filterAuditType, setFilterAuditType] = useState("");
   const [filterEntityType, setFilterEntityType] = useState("");
@@ -70,57 +76,91 @@ export default function AuditPage() {
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
 
-  const toISOOptional = (localDatetime: string) =>
-    localDatetime ? new Date(localDatetime).toISOString() : undefined;
+  // Single endpoint: Query (search) + pageNumber (pagination) + filters. Result populates the table.
+  const loadLogs = useCallback(
+    async (query: string, pageNum: number) => {
+      setIsLoading(true);
+      try {
+        const params: Parameters<typeof getAuditLogs>[0] = {
+          pageNumber: pageNum,
+          pageSize,
+        };
+        if ((query ?? "").trim()) params.query = query.trim();
+        if (filterAuditType) params.auditType = filterAuditType;
+        if (filterEntityType) params.entityType = filterEntityType;
+        if (filterAction) params.action = filterAction;
+        const startIso = toISOOptional(filterStartDate);
+        const endIso = toISOOptional(filterEndDate);
+        if (startIso) params.startDate = startIso;
+        if (endIso) params.endDate = endIso;
 
-  const loadLogs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params: Parameters<typeof getAuditLogs>[0] = {
-        pageNumber,
-        pageSize,
-      };
-      if (filterAuditType) params.auditType = filterAuditType;
-      if (filterEntityType) params.entityType = filterEntityType;
-      if (filterAction) params.action = filterAction;
-      const startIso = toISOOptional(filterStartDate);
-      const endIso = toISOOptional(filterEndDate);
-      if (startIso) params.startDate = startIso;
-      if (endIso) params.endDate = endIso;
+        const result = await getAuditLogs(params);
 
-      const result = await getAuditLogs(params);
-
-      if (result.success && result.data) {
-        setLogs(result.data.items);
-        setTotalCount(result.data.totalCount);
-      } else {
+        if (result.success && result.data) {
+          setLogs(result.data.items);
+          setTotalCount(result.data.totalCount);
+        } else {
+          setLogs([]);
+          setTotalCount(0);
+          const msg = result.message || result.error?.message;
+          if (msg) toast.error(msg);
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to load audit logs"
+        );
         setLogs([]);
         setTotalCount(0);
-        const msg = result.message || result.error?.message;
-        if (msg) toast.error(msg);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load audit logs"
-      );
-      setLogs([]);
-      setTotalCount(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    pageNumber,
-    pageSize,
-    filterAuditType,
-    filterEntityType,
-    filterAction,
-    filterStartDate,
-    filterEndDate,
-  ]);
+    },
+    [
+      pageSize,
+      filterAuditType,
+      filterEntityType,
+      filterAction,
+      filterStartDate,
+      filterEndDate,
+    ]
+  );
 
   useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
+    loadLogs(queryForApi, pageNumber);
+  }, [queryForApi, pageNumber, loadLogs]);
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setPageNumber(1);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const trimmed = (query ?? "").trim();
+    if (trimmed === "") {
+      setQueryForApi("");
+      return;
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      setQueryForApi(trimmed);
+      setPageNumber(1);
+      searchDebounceRef.current = null;
+    }, 400);
+  }, []);
+
+  const handleSearchSubmit = useCallback((query: string) => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    setSearchQuery(query);
+    setQueryForApi((query ?? "").trim());
+    setPageNumber(1);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    },
+    []
+  );
 
   const hasActiveFilters =
     filterAuditType ||
@@ -135,6 +175,8 @@ export default function AuditPage() {
     setFilterAction("");
     setFilterStartDate("");
     setFilterEndDate("");
+    setSearchQuery("");
+    setQueryForApi("");
     setPageNumber(1);
   };
 
@@ -264,6 +306,21 @@ export default function AuditPage() {
         }
       />
 
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search audit logs..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearchSubmit(searchQuery);
+            }}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
       {showFilters && (
         <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-muted/30 p-4">
           <div className="space-y-2">
@@ -364,6 +421,7 @@ export default function AuditPage() {
       <DataTable<AuditLogDto>
         columns={columns}
         data={logs}
+        searchable={false}
         isLoading={isLoading}
         emptyMessage="No audit logs found"
         emptyDescription="System activity will appear here once actions are performed. Try adjusting filters."

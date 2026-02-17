@@ -28,6 +28,9 @@ export async function getAuditLogs(
   if (params?.pageSize != null) {
     searchParams.set("pageSize", String(params.pageSize));
   }
+  if (params?.query?.trim()) {
+    searchParams.set("Query", params.query.trim());
+  }
   if (params?.userId) {
     searchParams.set("userId", params.userId);
   }
