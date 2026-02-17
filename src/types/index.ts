@@ -58,6 +58,7 @@ export interface User {
 
 export interface UserWithFullName extends User {
   fullName: string;
+  isActive?: boolean;
 }
 
 export interface UsersListResponse {
@@ -353,6 +354,7 @@ export interface AuditLogDto {
 export interface GetAuditLogsParams {
   pageNumber?: number;
   pageSize?: number;
+  query?: string;
   userId?: string;
   tenantId?: string;
   workspaceId?: string;

@@ -909,7 +909,16 @@ export default function AdminUsersPage() {
       header: "Status",
       cell: (user) => (
         <div className="flex items-center gap-2">
-          <Badge variant={statusColors[user.status]}>{user.status}</Badge>
+          <Badge variant={user.isActive ? "success" : "secondary"}>{user.isActive ? "Active" : "Inactive"}</Badge>
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: "Verified",
+      cell: (user) => (
+        <div className="flex items-center gap-2">
+          <Badge variant={user.emailVerified ? "success" : "secondary"}>{user.emailVerified ? "True" : "False"}</Badge>
           {user.emailVerified && (
             <span title="Email verified">
               <Mail className="h-4 w-4 text-green-600" />
@@ -949,8 +958,7 @@ export default function AdminUsersPage() {
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {user.status === UserStatus.INACTIVE ||
-              user.status === UserStatus.SUSPENDED ? (
+            {!user.isActive ? (
               <DropdownMenuItem onClick={() => handleActivate(user)}>
                 <UserCheck className="mr-2 h-4 w-4" />
                 Activate

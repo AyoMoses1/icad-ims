@@ -475,7 +475,7 @@ export default function PermissionsPage() {
             ? totalCount
             : filterType === "tenant"
               ? permissions.filter((p) => !p.isSystemPermission && p.tenantId)
-                  .length
+                .length
               : permissions.filter((p) => p.isSystemPermission).length
         }
         onPageChange={handlePageChange}
