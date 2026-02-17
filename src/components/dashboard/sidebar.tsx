@@ -192,6 +192,7 @@ const SUPER_ADMIN_MENU_ITEMS: SuperAdminMenuItem[] = [
   { title: "Admin Roles", href: "/admin/roles", icon: Shield },
   { title: "Workspace Resources", href: "/admin/resources", icon: FolderTree },
   { title: "Workspace Management", href: "/admin/workspaces", icon: Building },
+  { title: "Audit Logs", href: "/audit", icon: FileText },
 ];
 
 const SUPER_ADMIN_USER_MANAGEMENT_KEY = "super-admin-user-management";
