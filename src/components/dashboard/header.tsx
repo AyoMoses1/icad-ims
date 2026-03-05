@@ -70,6 +70,7 @@ const getPageTitle = (pathname: string): string => {
     "/marine/monitoring": "Environmental Monitoring",
     "/marine/pollution": "Pollution Control",
     "/marine/protected": "Protected Areas",
+    "/marine/ship-history": "Ship History (AIS)",
     // Cabotage
     "/cabotage/permits": "Cabotage Permits",
     "/cabotage/terminals": "Terminal Operations",
