@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Sidebar, Header } from "@/components/dashboard";
@@ -13,6 +13,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const {
     isAuthenticated,
     isLoading: authLoading,
@@ -21,6 +22,10 @@ export default function DashboardLayout({
   } = useAuthStore();
   const { setWorkspaces, setCurrentWorkspaceById, currentWorkspaceId } =
     useWorkspaceStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Check authentication on mount - wait for hydration to complete
   useEffect(() => {
@@ -129,6 +134,16 @@ export default function DashboardLayout({
     setCurrentWorkspaceById,
     currentWorkspaceId,
   ]);
+
+  // Defer auth-dependent UI until after mount to avoid hydration mismatch
+  // (auth store rehydrates from localStorage on client only)
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="lg:pl-80" />
+      </div>
+    );
+  }
 
   // Show loading state while hydrating
   if (authLoading) {

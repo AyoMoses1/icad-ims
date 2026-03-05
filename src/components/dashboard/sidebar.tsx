@@ -57,6 +57,7 @@ import {
   FolderTree,
   Ship,
   History,
+  GitBranch,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -658,6 +659,11 @@ export function Sidebar() {
               icon={Mail}
             />
           )}
+          {/* Workflows - visible to all users */}
+          <NavLink
+            item={{ title: "Workflows", href: "/workflows" }}
+            icon={GitBranch}
+          />
           {/* Super admin: show all management menu items (no API filter) */}
           {isSuperAdmin(userInfo) &&
             SUPER_ADMIN_MENU_ITEMS.map((item) => {
@@ -826,8 +832,8 @@ export function Sidebar() {
             )}
         </div>
 
-        {/* Workspace Label - Only show for non-admin users */}
-        {!userInfo?.isAdmin && (
+        {/* Workspace section - hidden for super admins */}
+        {!isSuperAdmin(userInfo) && (
           <>
             <div className="px-3 mb-3">
               <span className="text-xs font-semibold text-sidebar-muted-foreground uppercase tracking-wider">
