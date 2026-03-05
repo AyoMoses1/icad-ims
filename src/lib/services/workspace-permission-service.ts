@@ -1,9 +1,10 @@
 /**
  * Workspace Permission Service
  * Service for fetching and caching workspace permissions
+ *
+ * Note: GET /api/workspaces/{workspaceId}/permissions/my is not available (404),
+ * so getWorkspacePermissions returns an empty array and no API call is made.
  */
-
-import { apiGet, type ApiResponse } from "@/lib/api-client";
 
 export interface WorkspacePermission {
   permissionCode: string;
@@ -25,56 +26,26 @@ class WorkspacePermissionService {
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   /**
-   * Fetches permissions for a specific workspace
+   * Returns permissions for a specific workspace.
+   * The permissions/my endpoint is disabled (404), so we always return [].
    */
   async getWorkspacePermissions(
     workspaceId: string,
-    forceRefresh = false
+    _forceRefresh = false
   ): Promise<string[]> {
-    // Check cache first
-    if (!forceRefresh) {
-      const cached = this.permissionCache.get(workspaceId);
-      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-        return cached.permissions;
-      }
+    // Check cache first (in case we add another source later)
+    const cached = this.permissionCache.get(workspaceId);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.permissions;
     }
 
-    try {
-      // Fetch from API
-      const result = await apiGet<string[]>(
-        `/api/workspaces/${workspaceId}/permissions/my`
-      );
-
-      let permissions: string[] = [];
-
-      if (result.success && result.data) {
-        // Handle both array of strings and array of permission objects
-        permissions = Array.isArray(result.data)
-          ? result.data.map((p: string | WorkspacePermission) => {
-              if (typeof p === "string") {
-                return p;
-              }
-              return p.permissionCode;
-            })
-          : [];
-      }
-
-      // Cache permissions
-      this.permissionCache.set(workspaceId, {
-        permissions,
-        timestamp: Date.now(),
-      });
-
-      return permissions;
-    } catch (error) {
-      console.error("Failed to fetch workspace permissions:", error);
-      // Return cached permissions if available, even if expired
-      const cached = this.permissionCache.get(workspaceId);
-      if (cached) {
-        return cached.permissions;
-      }
-      return [];
-    }
+    // Endpoint not available - return empty and cache it
+    const permissions: string[] = [];
+    this.permissionCache.set(workspaceId, {
+      permissions,
+      timestamp: Date.now(),
+    });
+    return permissions;
   }
 
   /**
