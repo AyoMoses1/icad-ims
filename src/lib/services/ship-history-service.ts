@@ -32,57 +32,80 @@ export interface ShipHistoryDto {
   positions: ShipPositionDto[];
 }
 
-/** Raw position from API (PascalCase) */
-interface ShipPositionRaw {
-  Lat: number;
-  Lon: number;
-  Speed: number;
-  Course: number;
-  Heading: number;
-  Destination: string | null;
-  LastPositionEpoch: number;
-  LastPositionUtc: string;
-}
+/** Raw position from API (PascalCase or camelCase) */
+type PositionRaw = {
+  Lat?: number;
+  Lon?: number;
+  Speed?: number;
+  Course?: number;
+  Heading?: number | null;
+  Destination?: string | null;
+  LastPositionEpoch?: number;
+  LastPositionUtc?: string;
+  lat?: number;
+  lon?: number;
+  speed?: number;
+  course?: number;
+  heading?: number | null;
+  destination?: string | null;
+  lastPositionEpoch?: number;
+  lastPositionUtc?: string;
+};
 
-/** Raw ship history from API (PascalCase) */
-interface ShipHistoryRaw {
-  Uuid: string;
-  Name: string;
-  Mmsi: string | null;
-  Imo: string;
-  Eni: string | null;
-  CountryIso: string | null;
-  Type: string | null;
-  TypeSpecific: string | null;
-  Positions: ShipPositionRaw[];
-}
+/** Raw ship history from API (PascalCase or camelCase) */
+type ShipHistoryRaw = {
+  Uuid?: string;
+  Name?: string;
+  Mmsi?: string | null;
+  Imo?: string;
+  Eni?: string | null;
+  CountryIso?: string | null;
+  Type?: string | null;
+  TypeSpecific?: string | null;
+  Positions?: PositionRaw[];
+  uuid?: string;
+  name?: string;
+  mmsi?: string | null;
+  imo?: string;
+  eni?: string | null;
+  countryIso?: string | null;
+  type?: string | null;
+  typeSpecific?: string | null;
+  positions?: PositionRaw[];
+};
 
-function mapPosition(p: ShipPositionRaw): ShipPositionDto {
+function mapPosition(p: PositionRaw): ShipPositionDto {
+  const lat = p.Lat ?? p.lat ?? 0;
+  const lon = p.Lon ?? p.lon ?? 0;
+  const speed = p.Speed ?? p.speed ?? 0;
+  const course = p.Course ?? p.course ?? 0;
+  const heading = p.Heading ?? p.heading ?? 0;
   return {
-    lat: p.Lat,
-    lon: p.Lon,
-    speed: p.Speed,
-    course: p.Course,
-    heading: p.Heading,
-    destination: p.Destination ?? null,
-    lastPositionEpoch: p.LastPositionEpoch,
-    lastPositionUtc: p.LastPositionUtc,
+    lat,
+    lon,
+    speed,
+    course,
+    heading: typeof heading === "number" ? heading : 0,
+    destination: p.Destination ?? p.destination ?? null,
+    lastPositionEpoch: p.LastPositionEpoch ?? p.lastPositionEpoch ?? 0,
+    lastPositionUtc: p.LastPositionUtc ?? p.lastPositionUtc ?? "",
   };
 }
 
-function mapHistory(raw: ShipHistoryRaw): ShipHistoryDto {
-  const positions = Array.isArray(raw.Positions)
-    ? raw.Positions.map(mapPosition)
+function normalizeHistory(raw: ShipHistoryRaw): ShipHistoryDto {
+  const positionsArray = raw.Positions ?? raw.positions ?? [];
+  const positions = Array.isArray(positionsArray)
+    ? positionsArray.map(mapPosition)
     : [];
   return {
-    uuid: raw.Uuid ?? "",
-    name: raw.Name ?? "",
-    mmsi: raw.Mmsi ?? null,
-    imo: raw.Imo ?? "",
-    eni: raw.Eni ?? null,
-    countryIso: raw.CountryIso ?? null,
-    type: raw.Type ?? null,
-    typeSpecific: raw.TypeSpecific ?? null,
+    uuid: raw.Uuid ?? raw.uuid ?? "",
+    name: raw.Name ?? raw.name ?? "",
+    mmsi: raw.Mmsi ?? raw.mmsi ?? null,
+    imo: raw.Imo ?? raw.imo ?? "",
+    eni: raw.Eni ?? raw.eni ?? null,
+    countryIso: raw.CountryIso ?? raw.countryIso ?? null,
+    type: raw.Type ?? raw.type ?? null,
+    typeSpecific: raw.TypeSpecific ?? raw.typeSpecific ?? null,
     positions,
   };
 }
@@ -148,6 +171,6 @@ export async function getShipHistoryByImo(
   return {
     ...response,
     success: true,
-    data: mapHistory(rawData as ShipHistoryRaw),
+    data: normalizeHistory(rawData as ShipHistoryRaw),
   };
 }
