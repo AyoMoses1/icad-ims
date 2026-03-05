@@ -180,8 +180,15 @@ type SuperAdminMenuItem =
 
 /** Full management menu for super admins (all items, not filtered by API permissions) */
 const SUPER_ADMIN_MENU_ITEMS: SuperAdminMenuItem[] = [
-  { title: "Maritime Intelligence", href: "/maritime-intelligence", icon: Ship },
-  { title: "Debtors Analysis", href: "/debtors-analysis", icon: BarChart },
+  {
+    title: "Maritime Intelligence",
+    icon: Ship,
+    children: [
+      { title: "Debtors Analysis", href: "/debtors-analysis" },
+      { title: "Live AIS Tracking", href: "/maritime-intelligence" },
+      { title: "Marine ship history", href: "/marine/ship-history" },
+    ],
+  },
   {
     title: "User Management",
     icon: Shield,
@@ -669,20 +676,22 @@ export function Sidebar() {
             SUPER_ADMIN_MENU_ITEMS.map((item) => {
               if (item.children && item.children.length > 0) {
                 const currentPath = pathname ?? "";
+                const expandKey = `super-admin-${item.title}`;
+                const isChildPath = item.children.some(
+                  (c) => currentPath === c.href || currentPath.startsWith(c.href + "/")
+                );
                 const isExpanded =
-                  expandedItems.includes(SUPER_ADMIN_USER_MANAGEMENT_KEY) ||
-                  currentPath === "/users" ||
-                  currentPath.startsWith("/admin/users");
+                  expandedItems.includes(expandKey) || isChildPath;
                 const Icon = item.icon;
                 return (
-                  <div key={SUPER_ADMIN_USER_MANAGEMENT_KEY}>
+                  <div key={expandKey}>
                     <button
                       type="button"
                       onClick={() =>
                         setExpandedItems((prev) =>
-                          prev.includes(SUPER_ADMIN_USER_MANAGEMENT_KEY)
-                            ? prev.filter((k) => k !== SUPER_ADMIN_USER_MANAGEMENT_KEY)
-                            : [...prev, SUPER_ADMIN_USER_MANAGEMENT_KEY]
+                          prev.includes(expandKey)
+                            ? prev.filter((k) => k !== expandKey)
+                            : [...prev, expandKey]
                         )
                       }
                       className={cn(
@@ -715,7 +724,7 @@ export function Sidebar() {
                             key={child.href}
                             item={{ title: child.title, href: child.href }}
                             isChild
-                            icon={Users}
+                            icon={Icon}
                           />
                         ))}
                       </div>

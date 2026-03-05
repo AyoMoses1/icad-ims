@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Ship, MapPin, Loader2, Search, History } from "lucide-react";
+import { Ship, MapPin, Loader2, Search, History, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { toast } from "sonner";
 
 type DateRangeMode = "days" | "range";
 
+const POSITIONS_PAGE_SIZE = 10;
+
 export default function ShipHistoryPage() {
   const [imo, setImo] = useState("");
   const [dateMode, setDateMode] = useState<DateRangeMode>("days");
@@ -26,6 +28,15 @@ export default function ShipHistoryPage() {
   const [toDate, setToDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ShipHistoryDto | null>(null);
+  const [positionsPage, setPositionsPage] = useState(1);
+
+  const totalPositions = result?.positions?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalPositions / POSITIONS_PAGE_SIZE));
+  const startIndex = (positionsPage - 1) * POSITIONS_PAGE_SIZE;
+  const paginatedPositions = result?.positions?.slice(
+    startIndex,
+    startIndex + POSITIONS_PAGE_SIZE
+  ) ?? [];
 
   const handleSearch = async () => {
     const trimmedImo = imo.trim();
@@ -57,6 +68,7 @@ export default function ShipHistoryPage() {
         return;
       }
       setResult(response.data ?? null);
+      setPositionsPage(1);
       if (response.data?.positions?.length) {
         toast.success(
           `Loaded ${response.data.positions.length} position(s) for ${response.data.name}`
@@ -194,53 +206,82 @@ export default function ShipHistoryPage() {
             <CardContent className="pt-6">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
-                Positions ({result.positions.length})
+                Positions ({totalPositions})
               </h3>
               {result.positions.length === 0 ? (
                 <p className="text-muted-foreground py-8 text-center">
                   No position records for the selected period.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-2 font-medium">Time (UTC)</th>
-                        <th className="text-left py-2 px-2 font-medium">Lat</th>
-                        <th className="text-left py-2 px-2 font-medium">Lon</th>
-                        <th className="text-left py-2 px-2 font-medium">Speed</th>
-                        <th className="text-left py-2 px-2 font-medium">Course</th>
-                        <th className="text-left py-2 px-2 font-medium">Heading</th>
-                        <th className="text-left py-2 px-2 font-medium">Destination</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.positions.map((pos: ShipPositionDto, i: number) => (
-                        <tr
-                          key={`${pos.lastPositionEpoch}-${i}`}
-                          className="border-b last:border-0 hover:bg-muted/50"
-                        >
-                          <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
-                            {pos.lastPositionUtc
-                              ? formatDateTime(pos.lastPositionUtc)
-                              : "—"}
-                          </td>
-                          <td className="py-2 px-2">{pos.lat.toFixed(5)}</td>
-                          <td className="py-2 px-2">{pos.lon.toFixed(5)}</td>
-                          <td className="py-2 px-2">{pos.speed}</td>
-                          <td className="py-2 px-2">{pos.course}</td>
-                          <td className="py-2 px-2">{pos.heading}</td>
-                          <td
-                            className="py-2 px-2 max-w-[200px] truncate"
-                            title={pos.destination ?? undefined}
-                          >
-                            {pos.destination ?? "—"}
-                          </td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 px-2 font-medium">Time (UTC)</th>
+                          <th className="text-left py-2 px-2 font-medium">Lat</th>
+                          <th className="text-left py-2 px-2 font-medium">Lon</th>
+                          <th className="text-left py-2 px-2 font-medium">Speed</th>
+                          <th className="text-left py-2 px-2 font-medium">Course</th>
+                          <th className="text-left py-2 px-2 font-medium">Heading</th>
+                          <th className="text-left py-2 px-2 font-medium">Destination</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {paginatedPositions.map((pos: ShipPositionDto, i: number) => (
+                          <tr
+                            key={`${pos.lastPositionEpoch}-${startIndex + i}`}
+                            className="border-b last:border-0 hover:bg-muted/50"
+                          >
+                            <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
+                              {pos.lastPositionUtc
+                                ? formatDateTime(pos.lastPositionUtc)
+                                : "—"}
+                            </td>
+                            <td className="py-2 px-2">{pos.lat.toFixed(5)}</td>
+                            <td className="py-2 px-2">{pos.lon.toFixed(5)}</td>
+                            <td className="py-2 px-2">{pos.speed}</td>
+                            <td className="py-2 px-2">{pos.course}</td>
+                            <td className="py-2 px-2">{pos.heading}</td>
+                            <td
+                              className="py-2 px-2 max-w-[200px] truncate"
+                              title={pos.destination ?? undefined}
+                            >
+                              {pos.destination ?? "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {totalPositions > POSITIONS_PAGE_SIZE && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={positionsPage <= 1}
+                        onClick={() => setPositionsPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {positionsPage} of {totalPages}
+                        {" · "}
+                        Showing {startIndex + 1}–{Math.min(startIndex + POSITIONS_PAGE_SIZE, totalPositions)} of {totalPositions}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={positionsPage >= totalPages}
+                        onClick={() => setPositionsPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
