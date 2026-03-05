@@ -376,6 +376,175 @@ export interface PagedAuditLogsResult {
 }
 
 // ============================================================================
+// Workflow Types (api/workspaces/{workspaceId}/workflows)
+// ============================================================================
+
+export interface WorkflowTypeDto {
+  workflowTypeId: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  updateUrl: string | null;
+  viewDetailUrl: string | null;
+  isActive: boolean;
+  stageCount: number;
+  dateCreated: string;
+  createdBy: string;
+}
+
+export interface WorkflowStageDto {
+  workflowStageId: string;
+  workflowTypeId: string;
+  stageOrder: number;
+  stageName: string;
+  description: string | null;
+  isActive: boolean;
+  assignees?: WorkflowStageAssigneeDto[];
+}
+
+export interface WorkflowStageAssigneeDto {
+  workflowStageAssigneeId: string;
+  workflowStageId: string;
+  assigneeType: "Role" | "User";
+  assigneeValue: string;
+  canApprove: boolean;
+  canReject: boolean;
+  isActive: boolean;
+}
+
+export interface WorkflowTypeDetailDto extends WorkflowTypeDto {
+  stages: WorkflowStageDto[];
+}
+
+export interface CreateWorkflowTypeRequestDto {
+  name: string;
+  description?: string;
+  updateUrl?: string;
+  viewDetailUrl?: string;
+}
+
+export interface UpdateWorkflowTypeRequestDto {
+  name?: string;
+  description?: string;
+  updateUrl?: string;
+  viewDetailUrl?: string;
+  isActive?: boolean;
+}
+
+export interface CreateWorkflowStageRequestDto {
+  stageOrder: number;
+  stageName: string;
+  description?: string;
+}
+
+export interface UpdateWorkflowStageRequestDto {
+  stageName?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface AddWorkflowStageAssigneeRequestDto {
+  assigneeType: "Role" | "User";
+  assigneeValue: string;
+  canApprove?: boolean;
+  canReject?: boolean;
+}
+
+export interface WorkflowDto {
+  workflowId: string;
+  workflowTypeId: string;
+  workflowTypeName: string;
+  workspaceId: string;
+  referenceType: string;
+  referenceId: string;
+  description: string | null;
+  currentWorkflowStageId: string | null;
+  currentStageName: string | null;
+  status: "Pending" | "Approved" | "Rejected" | "Cancelled";
+  dateCreated: string;
+  createdBy: string;
+  dateCompleted: string | null;
+}
+
+export interface WorkflowDetailDto extends WorkflowDto {
+  currentStageAssignees: WorkflowStageAssigneeDto[];
+  viewDetailUrl: string | null;
+  recentActivities: WorkflowActivityDto[];
+}
+
+export interface SubmitWorkflowRequestDto {
+  workflowTypeId: string;
+  referenceType: string;
+  referenceId: string;
+  description?: string;
+}
+
+export interface GetWorkflowTypesParams {
+  pageNumber?: number;
+  pageSize?: number;
+  isActive?: boolean;
+}
+
+export interface GetWorkflowsParams {
+  pageNumber?: number;
+  pageSize?: number;
+  workflowTypeId?: string;
+  status?: "Pending" | "Approved" | "Rejected" | "Cancelled";
+  referenceType?: string;
+  referenceId?: string;
+  createdBy?: string;
+}
+
+export interface PagedWorkflowTypesResult {
+  items: WorkflowTypeDto[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface PagedWorkflowsResult {
+  items: WorkflowDto[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface WorkflowActivityDto {
+  workflowActivityId: string;
+  workflowId: string;
+  action: string;
+  remark: string | null;
+  createdBy: string;
+  createdByName: string | null;
+  dateCreated: string;
+  oldWorkflowStageId: string | null;
+  newWorkflowStageId: string | null;
+  oldStageName: string | null;
+  newStageName: string | null;
+}
+
+export interface PagedWorkflowActivitiesResult {
+  items: WorkflowActivityDto[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface ApproveWorkflowRequestDto {
+  remark?: string;
+}
+export interface RejectWorkflowRequestDto {
+  remark?: string;
+}
+export interface ReturnWorkflowRequestDto {
+  targetWorkflowStageId: string;
+  remark?: string;
+}
+export interface CancelWorkflowRequestDto {
+  remark?: string;
+}
+
+// ============================================================================
 // Auth Types
 // ============================================================================
 

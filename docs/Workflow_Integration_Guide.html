@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow Integration Guide – MEMS.IAM</title>
+  <style>
+    body { font-family: system-ui, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.5; color: #1a1a1a; }
+    h1 { font-size: 1.75rem; border-bottom: 2px solid #333; padding-bottom: 0.5rem; }
+    h2 { font-size: 1.35rem; margin-top: 2rem; }
+    h3 { font-size: 1.15rem; margin-top: 1.5rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    code { background: #f4f4f4; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; }
+    pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; border-radius: 4px; font-size: 0.85rem; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 2rem 0; }
+    ul { padding-left: 1.5rem; }
+    .subtitle { font-weight: 600; color: #444; margin-bottom: 1.5rem; }
+    @media print { body { padding: 1rem; } h2 { page-break-after: avoid; } table { page-break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <h1>Workflow Integration Guide – MEMS.IAM</h1>
+  <p class="subtitle">Detailed information about the workflow integration: key meanings, real-life examples, and suggestions for improvement.</p>
+
+  <hr />
+  <h2>1. Introduction</h2>
+  <p>The MEMS.IAM workflow engine provides <strong>workspace-scoped</strong> approval and review workflows. You define <strong>workflow types</strong> (e.g. "Registration Approval"), add <strong>stages</strong> (e.g. "Initial Review", "Final Approval"), assign <strong>roles or users</strong> to each stage, then <strong>submit</strong> workflow instances linked to business records (e.g. a registration or document). Assignees see items in <strong>My tasks</strong> and can <strong>Approve</strong>, <strong>Reject</strong>, <strong>Return</strong>, <strong>Cancel</strong>, <strong>Claim</strong>, or <strong>Unclaim</strong>.</p>
+  <p>All endpoints are under: <code>api/workspaces/{workspaceId}/workflows</code> and require a valid <strong>Bearer token</strong> and <strong>workspaceId</strong> (GUID).</p>
+
+  <hr />
+  <h2>2. Key Concepts and Meanings</h2>
+
+  <h3>2.1 Workspace and scope</h3>
+  <table>
+    <tr><th>Key</th><th>Meaning</th></tr>
+    <tr><td><strong>workspaceId</strong></td><td>GUID of the workspace. Every workflow type and workflow instance belongs to one workspace. Used in the URL path for all workflow API calls.</td></tr>
+    <tr><td><strong>Real-life use</strong></td><td>Different departments or clients each have their own workspace; workflows are isolated per workspace.</td></tr>
+  </table>
+
+  <h3>2.2 Workflow type (definition)</h3>
+  <p>A <strong>workflow type</strong> is the <em>template</em> for a kind of process (e.g. "Registration Approval", "Document Review"). It has no stages until you add them.</p>
+  <table>
+    <tr><th>Key</th><th>Meaning</th></tr>
+    <tr><td><strong>workflowTypeId</strong></td><td>GUID that uniquely identifies the workflow type within the workspace.</td></tr>
+    <tr><td><strong>name</strong></td><td>Display name (e.g. "Registration Approval"). Must be unique within the workspace.</td></tr>
+    <tr><td><strong>description</strong></td><td>Optional text describing what this workflow is for.</td></tr>
+    <tr><td><strong>updateUrl</strong></td><td>Optional URL template for <em>updating</em> the business record from an external system. Placeholder <code>{ReferenceId}</code> is replaced by the workflow's reference ID. Example: <code>https://service/module/update/{ReferenceId}</code>.</td></tr>
+    <tr><td><strong>viewDetailUrl</strong></td><td>Optional URL template for <em>viewing</em> the linked business record in the UI. Example: <code>/registrations/{ReferenceId}</code>. The API resolves this to a concrete URL (e.g. <code>/registrations/REG-001</code>) when returning workflow detail.</td></tr>
+    <tr><td><strong>isActive</strong></td><td>Whether the type is active. Inactive types may be hidden or not usable for new workflows, depending on backend.</td></tr>
+    <tr><td><strong>stageCount</strong></td><td>Number of stages attached to this type. A type with 0 stages cannot be used to submit a workflow (API returns "Workflow type has no stages").</td></tr>
+    <tr><td><strong>dateCreated / createdBy</strong></td><td>Audit fields for when and who created the type.</td></tr>
+  </table>
+  <p><strong>Real-life examples:</strong> Registration Approval (vessel/company registration); Document Review (compliance/contracts); Leave Request (manager → HR); Purchase Order (finance → director).</p>
+
+  <h3>2.3 Stages</h3>
+  <p><strong>Stages</strong> are the ordered steps of a workflow type (e.g. stage 1 "Initial Review", stage 2 "Final Approval"). Order is determined by <code>stageOrder</code> (1, 2, 3, …).</p>
+  <table>
+    <tr><th>Key</th><th>Meaning</th></tr>
+    <tr><td><strong>workflowStageId</strong></td><td>GUID of the stage.</td></tr>
+    <tr><td><strong>stageOrder</strong></td><td>Integer order (1 = first, then 2, 3, …). Defines the flow.</td></tr>
+    <tr><td><strong>stageName</strong></td><td>Display name (e.g. "Initial Review", "Final Approval").</td></tr>
+    <tr><td><strong>assignees</strong></td><td>List of roles or users who can act at this stage (approve/reject).</td></tr>
+  </table>
+  <p><strong>Real-life examples:</strong> Initial Review (first-line checker); Final Approval (senior sign-off); Compliance Check (dedicated compliance stage).</p>
+
+  <h3>2.4 Stage assignees</h3>
+  <p><strong>Assignees</strong> define who can act at a stage: either everyone with a given <strong>role</strong> or a specific <strong>user</strong>. For <code>assigneeType: "Role"</code>, <code>assigneeValue</code> must be the <strong>WorkspaceRoleId</strong> (GUID).</p>
+  <table>
+    <tr><th>Key</th><th>Meaning</th></tr>
+    <tr><td><strong>assigneeType</strong></td><td><code>"Role"</code> or <code>"User"</code>.</td></tr>
+    <tr><td><strong>assigneeValue</strong></td><td>For Role: WorkspaceRoleId (GUID). For User: user GUID.</td></tr>
+    <tr><td><strong>canApprove</strong></td><td>If true, this assignee can approve (move to next stage or complete).</td></tr>
+    <tr><td><strong>canReject</strong></td><td>If true, this assignee can reject (workflow completed as Rejected).</td></tr>
+  </table>
+
+  <h3>2.5 Workflow instance (submitted workflow)</h3>
+  <p>A <strong>workflow instance</strong> is one run of a workflow type, tied to a business record (e.g. registration REG-001).</p>
+  <table>
+    <tr><th>Key</th><th>Meaning</th></tr>
+    <tr><td><strong>workflowId</strong></td><td>GUID of the workflow instance.</td></tr>
+    <tr><td><strong>referenceType / referenceId</strong></td><td>Business entity type and record ID (e.g. "Registration", "REG-001"). Links the workflow to the actual record.</td></tr>
+    <tr><td><strong>currentWorkflowStageId / currentStageName</strong></td><td>Current stage; assignees at this stage see it in "My tasks".</td></tr>
+    <tr><td><strong>status</strong></td><td><code>Pending</code>, <code>Approved</code>, <code>Rejected</code>, or <code>Cancelled</code>. Only Pending workflows can be acted on.</td></tr>
+  </table>
+
+  <h3>2.6 Workflow actions</h3>
+  <table>
+    <tr><th>Action</th><th>Meaning</th><th>When used</th></tr>
+    <tr><td><strong>Submit</strong></td><td>Create a new workflow instance. Starts at the first stage.</td><td>User submits a registration or document for approval.</td></tr>
+    <tr><td><strong>Approve</strong></td><td>Approve current stage; move to next or complete.</td><td>Reviewer is satisfied and approves.</td></tr>
+    <tr><td><strong>Reject</strong></td><td>Reject the workflow. Status becomes Rejected.</td><td>Reviewer rejects (e.g. incomplete documents).</td></tr>
+    <tr><td><strong>Return</strong></td><td>Send back to a previous stage.</td><td>"Return for corrections" to an earlier stage.</td></tr>
+    <tr><td><strong>Cancel</strong></td><td>Cancel a Pending workflow.</td><td>Submitter or admin cancels the request.</td></tr>
+    <tr><td><strong>Claim / Unclaim</strong></td><td>Assign or release the current user as the one working on this workflow at this stage.</td><td>Optional; used when only one person should act at a time.</td></tr>
+  </table>
+
+  <h3>2.7 Activities (audit trail)</h3>
+  <p>Each action creates an <strong>activity</strong> record: action, remark, createdBy, dateCreated, old/new stage. Used for compliance: "Who approved this?", "When was it returned?", "What was the reject reason?".</p>
+
+  <hr />
+  <h2>3. Real-life use cases (end-to-end)</h2>
+  <ul>
+    <li><strong>Vessel registration approval:</strong> Type "Registration Approval" → Stages "Initial Review" → "Final Approval" → Roles "Registration Officer" then "Registration Manager". Submit REG-001 → Officers see in My tasks → Approve → Managers see → Approve or Reject.</li>
+    <li><strong>Document compliance review:</strong> Type "Document Review" → "Compliance Check" → "Approval". Assignees: Compliance Officer, then Approver.</li>
+    <li><strong>Leave request (HR):</strong> Type "Leave Request" → "Manager Approval" → "HR Approval". Employee submits; manager then HR approve or reject; Return sends back to manager.</li>
+  </ul>
+
+  <hr />
+  <h2>4. API response wrapper</h2>
+  <p>All endpoints return: <code>success</code>, <code>data</code>, <code>message</code>, <code>code</code>, <code>error</code>. On failure, <code>error</code> may contain e.g. "Workflow type has no stages" (MEMS001) or 403 Forbidden.</p>
+
+  <hr />
+  <h2>5. Suggestions and possible corrections</h2>
+  <p><strong>Backend:</strong> (1) Use WorkspaceRoleId (GUID) for assigneeValue when assigneeType is Role. (2) Resolve viewDetailUrl with {ReferenceId}. (3) Document updateUrl usage. (4) Consistent pagination parameter names.</p>
+  <p><strong>Frontend:</strong> (1) Show role name (not GUID) for assignees. (2) Only allow submit for types with stageCount &gt; 0. (3) Include updateUrl in Create/Edit type. (4) Use assignable-to-me for My tasks tab.</p>
+  <p><strong>Documentation:</strong> State in API reference that assigneeValue for Role must be WorkspaceRoleId (GUID). Document common error codes and UI handling.</p>
+
+  <hr />
+  <h2>6. Quick reference – main keys</h2>
+  <table>
+    <tr><th>Key</th><th>Meaning in one line</th></tr>
+    <tr><td>workspaceId</td><td>Workspace scope for all workflow APIs.</td></tr>
+    <tr><td>workflowTypeId, name, updateUrl, viewDetailUrl, stageCount</td><td>Type metadata and URL templates; stageCount must be &gt; 0 to submit.</td></tr>
+    <tr><td>workflowStageId, stageOrder, stageName</td><td>Stage identity and order.</td></tr>
+    <tr><td>assigneeType, assigneeValue (GUID), canApprove, canReject</td><td>Who can act at a stage (Role = WorkspaceRoleId).</td></tr>
+    <tr><td>workflowId, referenceType, referenceId, status</td><td>Instance ID, link to business record, Pending/Approved/Rejected/Cancelled.</td></tr>
+    <tr><td>action, remark, createdBy, dateCreated</td><td>Activity audit: what, comment, who, when.</td></tr>
+  </table>
+
+  <p><em>Document version: 1.0. For API details see Workflow-API-Reference.md. For step-by-step testing see WORKFLOW_TESTING_GUIDE.md.</em></p>
+</body>
+</html>
