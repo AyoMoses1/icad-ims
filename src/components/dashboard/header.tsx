@@ -71,6 +71,9 @@ const getPageTitle = (pathname: string): string => {
     "/marine/pollution": "Pollution Control",
     "/marine/protected": "Protected Areas",
     "/marine/ship-history": "Ship History (AIS)",
+    "/maritime-intelligence": "Live AIS Tracking",
+    "/sts": "Ship-to-Ship (STS)",
+    "/sbm": "Single Buoy Mooring (SBM)",
     // Cabotage
     "/cabotage/permits": "Cabotage Permits",
     "/cabotage/terminals": "Terminal Operations",

@@ -186,6 +186,8 @@ const SUPER_ADMIN_MENU_ITEMS: SuperAdminMenuItem[] = [
     children: [
       { title: "Debtors Analysis", href: "/debtors-analysis" },
       { title: "Live AIS Tracking", href: "/maritime-intelligence" },
+      { title: "Ship-to-Ship (STS)", href: "/sts" },
+      { title: "Single Buoy Mooring (SBM)", href: "/sbm" },
       { title: "Marine ship history", href: "/marine/ship-history" },
     ],
   },
