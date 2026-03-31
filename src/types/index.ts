@@ -398,6 +398,7 @@ export interface WorkflowStageDto {
   stageOrder: number;
   stageName: string;
   description: string | null;
+  viewDetailUrl?: string | null;
   isActive: boolean;
   assignees?: WorkflowStageAssigneeDto[];
 }
@@ -435,11 +436,13 @@ export interface CreateWorkflowStageRequestDto {
   stageOrder: number;
   stageName: string;
   description?: string;
+  viewDetailUrl?: string;
 }
 
 export interface UpdateWorkflowStageRequestDto {
   stageName?: string;
   description?: string;
+  viewDetailUrl?: string;
   isActive?: boolean;
 }
 
@@ -469,6 +472,7 @@ export interface WorkflowDto {
 export interface WorkflowDetailDto extends WorkflowDto {
   currentStageAssignees: WorkflowStageAssigneeDto[];
   viewDetailUrl: string | null;
+  currentStageViewDetailUrl?: string | null;
   recentActivities: WorkflowActivityDto[];
 }
 
