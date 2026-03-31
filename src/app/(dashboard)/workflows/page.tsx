@@ -53,7 +53,7 @@ import {
   ConfirmDialog,
   LoadingSpinner,
 } from "@/components/shared";
-import { useWorkspaceStore } from "@/store";
+import { useWorkspaceStore, useAuthStore } from "@/store";
 import type {
   WorkflowTypeDto,
   WorkflowTypeDetailDto,
@@ -74,6 +74,7 @@ import {
   updateWorkflowType,
   deleteWorkflowType,
   addStage,
+  updateStage,
   addStageAssignee,
   removeStageAssignee,
   getWorkflows,
@@ -110,6 +111,7 @@ export default function WorkflowsPage() {
   const searchParams = useSearchParams();
   const queryWorkspaceId = searchParams?.get("workspaceId") ?? null;
   const { workspaces, currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
+  const { token } = useAuthStore();
   const [workspaceId, setWorkspaceId] = useState(() =>
     queryWorkspaceId ||
     currentWorkspace?.workspaceId ||
@@ -127,14 +129,18 @@ export default function WorkflowsPage() {
   const [isCreateTypeOpen, setIsCreateTypeOpen] = useState(false);
   const [isEditTypeOpen, setIsEditTypeOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<WorkflowTypeDetailDto | null>(null);
-  const [typeForm, setTypeForm] = useState({ name: "", description: "", updateUrl: "", viewDetailUrl: "" });
+  const [typeForm, setTypeForm] = useState({ name: "", description: "", updateUrl: "" });
   const [isTypeSubmitting, setIsTypeSubmitting] = useState(false);
   const [isDeleteTypeOpen, setIsDeleteTypeOpen] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState<WorkflowTypeDto | null>(null);
 
   // Stage / assignee management (in Edit type dialog)
-  const [stageForm, setStageForm] = useState({ stageOrder: 1, stageName: "", description: "" });
+  const [stageForm, setStageForm] = useState({ stageOrder: 1, stageName: "", description: "", viewDetailUrl: "" });
   const [isAddingStage, setIsAddingStage] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editStageForm, setEditStageForm] = useState({ stageName: "", description: "", viewDetailUrl: "" });
+  // Local cache of stage viewDetailUrls (backend may not return it on the list endpoint yet)
+  const [stageViewUrls, setStageViewUrls] = useState<Record<string, string>>({});
   const [addingAssigneeForStageId, setAddingAssigneeForStageId] = useState<string | null>(null);
   const [assigneeForm, setAssigneeForm] = useState<{
     assigneeValue: string;
@@ -169,6 +175,7 @@ export default function WorkflowsPage() {
   const [returnStageId, setReturnStageId] = useState("");
   const [isActioning, setIsActioning] = useState(false);
   const [detailWorkflowType, setDetailWorkflowType] = useState<WorkflowTypeDetailDto | null>(null);
+  const [showIframe, setShowIframe] = useState(false);
 
   const pageSize = 10;
 
@@ -316,12 +323,11 @@ export default function WorkflowsPage() {
         name: typeForm.name.trim(),
         description: typeForm.description.trim() || undefined,
         updateUrl: typeForm.updateUrl?.trim() || undefined,
-        viewDetailUrl: typeForm.viewDetailUrl.trim() || undefined,
       });
       if (res.success && res.data) {
         toast.success("Workflow type created");
         setIsCreateTypeOpen(false);
-        setTypeForm({ name: "", description: "", updateUrl: "", viewDetailUrl: "" });
+        setTypeForm({ name: "", description: "", updateUrl: "" });
         loadWorkflowTypes();
       } else {
         toast.error(res.message || res.error?.message || "Failed to create");
@@ -339,7 +345,7 @@ export default function WorkflowsPage() {
     setIsEditTypeOpen(true);
     setIsAddingStage(false);
     setAddingAssigneeForStageId(null);
-    setStageForm({ stageOrder: 1, stageName: "", description: "" });
+    setStageForm({ stageOrder: 1, stageName: "", description: "", viewDetailUrl: "" });
     setAssigneeForm({ assigneeValue: "", canApprove: true, canReject: true });
     setAdminRoles([]);
     try {
@@ -353,7 +359,6 @@ export default function WorkflowsPage() {
           name: typeRes.data.name,
           description: typeRes.data.description ?? "",
           updateUrl: typeRes.data.updateUrl ?? "",
-          viewDetailUrl: typeRes.data.viewDetailUrl ?? "",
         });
         setStageForm((f) => ({ ...f, stageOrder: (typeRes.data!.stages?.length ?? 0) + 1 }));
       } else {
@@ -378,7 +383,6 @@ export default function WorkflowsPage() {
         name: typeForm.name.trim(),
         description: typeForm.description.trim() || undefined,
         updateUrl: typeForm.updateUrl?.trim() || undefined,
-        viewDetailUrl: typeForm.viewDetailUrl.trim() || undefined,
       });
       if (res.success) {
         toast.success("Workflow type updated");
@@ -416,11 +420,15 @@ export default function WorkflowsPage() {
         stageOrder: stageForm.stageOrder,
         stageName: stageForm.stageName.trim(),
         description: stageForm.description.trim() || undefined,
+        viewDetailUrl: stageForm.viewDetailUrl.trim() || undefined,
       });
       if (res.success && res.data) {
         toast.success("Stage added");
+        if (stageForm.viewDetailUrl.trim()) {
+          setStageViewUrls((prev) => ({ ...prev, [res.data!.workflowStageId]: stageForm.viewDetailUrl.trim() }));
+        }
         const nextOrder = (selectedType.stages?.length ?? 0) + 1;
-        setStageForm({ stageOrder: nextOrder, stageName: "", description: "" });
+        setStageForm({ stageOrder: nextOrder, stageName: "", description: "", viewDetailUrl: "" });
         await refreshSelectedType();
         loadWorkflowTypes();
       } else {
@@ -428,6 +436,40 @@ export default function WorkflowsPage() {
       }
     } catch {
       toast.error("Failed to add stage");
+    } finally {
+      setIsStageActionLoading(false);
+    }
+  };
+
+  const handleUpdateStage = async (workflowStageId: string) => {
+    if (!selectedType || !workspaceId || !editStageForm.stageName.trim()) {
+      toast.error("Stage name is required");
+      return;
+    }
+    setIsStageActionLoading(true);
+    try {
+      const res = await updateStage(workspaceId, selectedType.workflowTypeId, workflowStageId, {
+        stageName: editStageForm.stageName.trim(),
+        description: editStageForm.description.trim() || undefined,
+        viewDetailUrl: editStageForm.viewDetailUrl.trim() || undefined,
+      });
+      if (res.success) {
+        toast.success("Stage updated");
+        const url = editStageForm.viewDetailUrl.trim();
+        setStageViewUrls((prev) => {
+          const next = { ...prev };
+          if (url) next[workflowStageId] = url;
+          else delete next[workflowStageId];
+          return next;
+        });
+        setEditingStageId(null);
+        await refreshSelectedType();
+        loadWorkflowTypes();
+      } else {
+        toast.error(res.message || res.error?.message || "Failed to update stage");
+      }
+    } catch {
+      toast.error("Failed to update stage");
     } finally {
       setIsStageActionLoading(false);
     }
@@ -512,6 +554,7 @@ export default function WorkflowsPage() {
     setActivities([]);
     setActionRemark("");
     setReturnStageId("");
+    setShowIframe(false);
     try {
       const [detailRes, activitiesRes, typeRes] = await Promise.all([
         getWorkflowById(workspaceId, workflow.workflowId),
@@ -877,14 +920,6 @@ export default function WorkflowsPage() {
                 placeholder="e.g. https://service/module/update/{ReferenceId}"
               />
             </div>
-            <div className="space-y-2">
-              <Label>View detail URL template</Label>
-              <Input
-                value={typeForm.viewDetailUrl}
-                onChange={(e) => setTypeForm((f) => ({ ...f, viewDetailUrl: e.target.value }))}
-                placeholder="e.g. /registrations/{ReferenceId}"
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateTypeOpen(false)}>Cancel</Button>
@@ -916,14 +951,6 @@ export default function WorkflowsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>View detail URL template</Label>
-                    <Input
-                      value={typeForm.viewDetailUrl}
-                      onChange={(e) => setTypeForm((f) => ({ ...f, viewDetailUrl: e.target.value }))}
-                      placeholder="/registrations/{ReferenceId}"
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
                     <Label>Update URL</Label>
                     <Input
                       value={typeForm.updateUrl}
@@ -954,14 +981,84 @@ export default function WorkflowsPage() {
                     .sort((a, b) => a.stageOrder - b.stageOrder)
                     .map((stage) => (
                       <div key={stage.workflowStageId} className="rounded-lg border p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            Stage {stage.stageOrder}: {stage.stageName}
-                          </span>
-                          {stage.description && (
-                            <span className="text-sm text-muted-foreground">{stage.description}</span>
-                          )}
-                        </div>
+                        {editingStageId === stage.workflowStageId ? (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-2 items-end">
+                              <div className="space-y-1 flex-1 min-w-[160px]">
+                                <span className="text-xs text-muted-foreground">Name *</span>
+                                <Input
+                                  value={editStageForm.stageName}
+                                  onChange={(e) => setEditStageForm((f) => ({ ...f, stageName: e.target.value }))}
+                                />
+                              </div>
+                              <div className="space-y-1 flex-1 min-w-[160px]">
+                                <span className="text-xs text-muted-foreground">Description</span>
+                                <Input
+                                  value={editStageForm.description}
+                                  onChange={(e) => setEditStageForm((f) => ({ ...f, description: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">View detail URL</span>
+                              <Input
+                                value={editStageForm.viewDetailUrl}
+                                onChange={(e) => setEditStageForm((f) => ({ ...f, viewDetailUrl: e.target.value }))}
+                                placeholder="e.g. /registrations/{ReferenceId}"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleUpdateStage(stage.workflowStageId)}
+                                disabled={isStageActionLoading || !editStageForm.stageName.trim()}
+                              >
+                                {isStageActionLoading ? <LoadingSpinner className="h-4 w-4" /> : "Save"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingStageId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">
+                                Stage {stage.stageOrder}: {stage.stageName}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {stage.description && (
+                                  <span className="text-sm text-muted-foreground">{stage.description}</span>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => {
+                                    setEditingStageId(stage.workflowStageId);
+                                    setEditStageForm({
+                                      stageName: stage.stageName,
+                                      description: stage.description ?? "",
+                                      viewDetailUrl: stage.viewDetailUrl ?? stageViewUrls[stage.workflowStageId] ?? "",
+                                    });
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            {(stage.viewDetailUrl || stageViewUrls[stage.workflowStageId]) && (
+                              <p className="text-xs text-muted-foreground pl-1">
+                                View URL: <code className="bg-muted px-1 py-0.5 rounded text-xs">{stage.viewDetailUrl || stageViewUrls[stage.workflowStageId]}</code>
+                              </p>
+                            )}
+                          </>
+                        )}
                         <div className="pl-2 space-y-1">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Users className="h-3 w-3" />
@@ -1114,6 +1211,16 @@ export default function WorkflowsPage() {
                             placeholder="Optional"
                           />
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">View detail URL</span>
+                        <Input
+                          value={stageForm.viewDetailUrl}
+                          onChange={(e) => setStageForm((f) => ({ ...f, viewDetailUrl: e.target.value }))}
+                          placeholder="e.g. https://service/module/update/"
+                        />
+                      </div>
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
                           onClick={handleAddStage}
@@ -1130,6 +1237,7 @@ export default function WorkflowsPage() {
                               stageOrder: (selectedType.stages?.length ?? 0) + 1,
                               stageName: "",
                               description: "",
+                              viewDetailUrl: "",
                             });
                           }}
                         >
@@ -1148,6 +1256,7 @@ export default function WorkflowsPage() {
                           stageOrder: (selectedType.stages?.length ?? 0) + 1,
                           stageName: "",
                           description: "",
+                          viewDetailUrl: "",
                         });
                       }}
                     >
@@ -1181,8 +1290,8 @@ export default function WorkflowsPage() {
       />
 
       {/* Workflow detail + actions */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={isDetailOpen} onOpenChange={(open) => { setIsDetailOpen(open); if (!open) setShowIframe(false); }}>
+        <DialogContent className={`${showIframe ? "max-w-5xl" : "max-w-2xl"} max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle>Workflow details</DialogTitle>
             <DialogDescription>View info and perform actions (approve, reject, return, cancel, claim, unclaim).</DialogDescription>
@@ -1199,12 +1308,32 @@ export default function WorkflowsPage() {
                   <span className="font-medium">Status:</span>{" "}
                   <Badge variant={STATUS_VARIANTS[detailWorkflow.status]}>{detailWorkflow.status}</Badge>
                 </p>
-                {detailWorkflow.viewDetailUrl && (
-                  <p><span className="font-medium">View URL:</span> {detailWorkflow.viewDetailUrl}</p>
+                {(detailWorkflow.currentStageViewDetailUrl || detailWorkflow.viewDetailUrl) && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowIframe((prev) => !prev)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      {showIframe ? "Hide Details" : "View Details"}
+                    </Button>
+                  </div>
                 )}
               </div>
 
-              {detailWorkflow.status === "Pending" && (
+              {showIframe && (detailWorkflow.currentStageViewDetailUrl) && (
+                <div className="border rounded-lg overflow-hidden mt-2">
+                  <iframe
+                    src={`${detailWorkflow.currentStageViewDetailUrl}?token=${token}`}
+                    className="w-full border-0"
+                    style={{ height: "500px" }}
+                    title="Workflow reference detail"
+                  />
+                </div>
+              )}
+
+             {/* {detailWorkflow.status === "Pending" && (
                 <div className="space-y-3 border-t pt-4">
                   <Label>Remark (optional, for actions)</Label>
                   <Textarea
@@ -1250,9 +1379,9 @@ export default function WorkflowsPage() {
                     )}
                   </div>
                 </div>
-              )}
+              )}  */}
 
-              <div className="border-t pt-4">
+              {/* <div className="border-t pt-4">
                 <h4 className="font-medium mb-2">Recent activities</h4>
                 <ul className="space-y-1 text-sm">
                   {activities.slice(0, 15).map((a) => (
@@ -1267,7 +1396,7 @@ export default function WorkflowsPage() {
                   ))}
                   {activities.length === 0 && <li className="text-muted-foreground">No activities yet.</li>}
                 </ul>
-              </div>
+              </div> */}
             </>
           ) : null}
         </DialogContent>
