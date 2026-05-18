@@ -1322,10 +1322,22 @@ export default function WorkflowsPage() {
                 )}
               </div>
 
-              {showIframe && (detailWorkflow.currentStageViewDetailUrl) && (
+              {showIframe &&
+                detailWorkflow.currentStageViewDetailUrl &&
+                token && (
                 <div className="border rounded-lg overflow-hidden mt-2">
                   <iframe
-                    src={`${detailWorkflow.currentStageViewDetailUrl}?token=${token}`}
+                    src={(() => {
+                      const base = detailWorkflow.currentStageViewDetailUrl;
+                      const u = new URL(
+                        base,
+                        typeof window !== "undefined"
+                          ? window.location.origin
+                          : "http://localhost"
+                      );
+                      u.searchParams.set("token", token);
+                      return u.toString();
+                    })()}
                     className="w-full border-0"
                     style={{ height: "500px" }}
                     title="Workflow reference detail"

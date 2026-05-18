@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
     const queryString = queryParams.toString();
     const endpoint = `/api/workspaces${queryString ? `?${queryString}` : ""}`;
 
-    const response = await apiClient<Workspace[]>(endpoint);
+    const authHeader = request.headers.get("authorization");
+    const response = await apiClient<Workspace[]>(endpoint, {
+      headers: authHeader ? { Authorization: authHeader } : undefined,
+    });
     return NextResponse.json(response);
   } catch (error) {
     return NextResponse.json(

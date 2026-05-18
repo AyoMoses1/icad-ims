@@ -107,7 +107,12 @@ export default function DashboardLayout({
   useEffect(() => {
     const loadWorkspaces = async () => {
       try {
-        const response = await fetch("/api/workspaces");
+        const bearer = useAuthStore.getState().token;
+        const response = await fetch("/api/workspaces", {
+          headers: bearer
+            ? { Authorization: `Bearer ${bearer}` }
+            : undefined,
+        });
         const result = await response.json();
         if (result.success && result.data) {
           // Handle both paginated response (with items) and direct array response
@@ -130,6 +135,7 @@ export default function DashboardLayout({
     }
   }, [
     isAuthenticated,
+    token,
     setWorkspaces,
     setCurrentWorkspaceById,
     currentWorkspaceId,

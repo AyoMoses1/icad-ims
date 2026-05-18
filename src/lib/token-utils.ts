@@ -4,6 +4,8 @@
  */
 
 export interface TokenClaims {
+  /** Present when the access token is a JWE; claims are not readable in the browser. */
+  __tokenFormat?: "jwe";
   sub?: string;
   user_id?: string;
   tenant_id?: string;
@@ -22,24 +24,59 @@ export interface WorkspaceFromToken {
 }
 
 /**
+ * Decodes JWT base64url payload to a UTF-8 string (claims JSON).
+ * Avoids decodeURIComponent(byte-hack) which throws URIError on many UTF-8 payloads.
+ */
+function decodeJwtPayloadSegment(base64Url: string): string {
+  const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = (4 - (base64.length % 4)) % 4;
+  const padded = base64 + (pad ? "=".repeat(pad) : "");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function parseJsonSegment(base64Url: string): unknown | null {
+  try {
+    return JSON.parse(decodeJwtPayloadSegment(base64Url)) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** RFC 7516 compact JWE: five segments; claims are not readable without the CEK. */
+function isLikelyJweCompact(parts: string[]): boolean {
+  if (parts.length !== 5) return false;
+  const header = parseJsonSegment(parts[0] ?? "");
+  return (
+    !!header &&
+    typeof header === "object" &&
+    header !== null &&
+    "enc" in header
+  );
+}
+
+/**
  * Decodes a JWT token and returns its claims
  */
 export function decodeToken(token: string): TokenClaims {
   try {
-    const base64Url = token.split(".")[1];
-    if (!base64Url) {
+    const normalized = token.trim();
+    const parts = normalized.split(".");
+
+    if (isLikelyJweCompact(parts)) {
+      return { __tokenFormat: "jwe" } as TokenClaims;
+    }
+
+    if (parts.length !== 3 || !parts[1]) {
       throw new Error("Invalid token format");
     }
 
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-
-    return JSON.parse(jsonPayload);
+    const jsonPayload = decodeJwtPayloadSegment(parts[1]);
+    return JSON.parse(jsonPayload) as TokenClaims;
   } catch (error) {
     console.error("Failed to decode token:", error);
     throw new Error("Invalid token format");
@@ -52,6 +89,9 @@ export function decodeToken(token: string): TokenClaims {
 export function getWorkspacesFromToken(token: string): WorkspaceFromToken[] {
   try {
     const decoded = decodeToken(token);
+    if (decoded.__tokenFormat === "jwe") {
+      return [];
+    }
     const workspacesClaim = decoded.workspaces;
 
     if (!workspacesClaim) {
@@ -120,6 +160,9 @@ export function getUserIdFromToken(token: string): string | null {
 export function isTokenExpired(token: string): boolean {
   try {
     const decoded = decodeToken(token);
+    if (decoded.__tokenFormat === "jwe") {
+      return false;
+    }
     if (!decoded.exp) {
       return true; // If no expiration claim, consider it expired
     }
@@ -138,6 +181,9 @@ export function isTokenExpired(token: string): boolean {
 export function getTokenExpirationDate(token: string): Date | null {
   try {
     const decoded = decodeToken(token);
+    if (decoded.__tokenFormat === "jwe") {
+      return null;
+    }
     if (!decoded.exp) {
       return null;
     }

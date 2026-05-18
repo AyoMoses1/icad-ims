@@ -232,10 +232,13 @@ const normalizeResourceUrl = (
       if (workspaceId) {
         urlObj.searchParams.set("workspaceId", workspaceId);
       }
-      // Get token from auth store
-      const { token } = useAuthStore.getState();
+      // Pass access + refresh tokens so Seafarer can refresh after onboarding
+      const { token, refreshToken } = useAuthStore.getState();
       if (token) {
         urlObj.searchParams.set("token", token);
+      }
+      if (refreshToken) {
+        urlObj.searchParams.set("refreshToken", refreshToken);
       }
       return urlObj.toString();
     } catch (e) {
