@@ -61,6 +61,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { buildWorkspaceApplicationUrlFromAuth } from "@/lib/workspace-app-url";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -225,24 +226,14 @@ const normalizeResourceUrl = (
     return url.replace("/api", "");
   }
 
-  // If it's an external URL (http/https), add workspaceId and token
+  // If it's an external URL (http/https), add token, refreshToken, and workspaceId
   if (url.startsWith("http://") || url.startsWith("https://")) {
     try {
-      const urlObj = new URL(url);
-      if (workspaceId) {
-        urlObj.searchParams.set("workspaceId", workspaceId);
-      }
-      // Pass access + refresh tokens so Seafarer can refresh after onboarding
-      const { token, refreshToken } = useAuthStore.getState();
-      if (token) {
-        urlObj.searchParams.set("token", token);
-      }
-      if (refreshToken) {
-        urlObj.searchParams.set("refreshToken", refreshToken);
-      }
-      return urlObj.toString();
-    } catch (e) {
-      // If URL parsing fails, return as is
+      return buildWorkspaceApplicationUrlFromAuth({
+        workspaceId: workspaceId ?? "",
+        workspaceUrl: url.split("?")[0],
+      });
+    } catch {
       return url;
     }
   }

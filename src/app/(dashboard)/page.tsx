@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore, useWorkspaceStore } from "@/store";
 import { getWorkspaces } from "@/lib/services/workspace-service";
+import { buildWorkspaceApplicationUrlFromAuth } from "@/lib/workspace-app-url";
 import type { Workspace } from "@/types";
 
 export default function DashboardPage() {
@@ -54,33 +55,12 @@ export default function DashboardPage() {
     fetchWorkspacesWithUrls();
   }, []);
 
-  /**
-   * Gets application URL for workspace
-   * Uses workspaceUrl from workspace if available, otherwise falls back to localhost:3001
-   * Includes both token and workspaceId as query parameters
-   */
-  const getApplicationUrl = (workspace: Workspace & { workspaceCode?: string }): string => {
-    if (!token) {
-      return `/workspaces/${workspace.workspaceId}`;
-    }
-
-    // Build query parameters
-    const params = new URLSearchParams({
-      token: token,
-      workspaceId: workspace.workspaceId,
-    });
-
-    // Use workspaceUrl from workspace if available, otherwise default to localhost:3001
-    const workspaceUrl = workspace.workspaceUrl || "http://localhost:3001";
-    return `${workspaceUrl}?${params.toString()}`;
-  };
-
   const handleWorkspaceClick = (workspace: Workspace) => {
     if (!token) {
       return;
     }
 
-    const url = getApplicationUrl(workspace);
+    const url = buildWorkspaceApplicationUrlFromAuth(workspace);
 
     // Navigate to the application URL
     window.location.href = url;
